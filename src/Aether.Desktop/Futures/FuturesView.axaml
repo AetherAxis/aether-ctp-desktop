@@ -1,0 +1,179 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Aether.Desktop.Futures.FuturesView">
+
+  <Grid RowDefinitions="Auto,Auto,*" Background="{DynamicResource ContentBgBrush}">
+
+    <!-- ═══ 登录栏：前置地址 / 账户 / 订阅合约 / 登录 ═══ -->
+    <Border Grid.Row="0" Padding="10,8" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+            Background="{DynamicResource SidebarBgBrush}">
+      <Grid ColumnDefinitions="180,180,90,110,110,Auto,Auto,*" >
+        <TextBox Grid.Column="0" Text="{Binding Front}" Watermark="交易前置 tcp://…:17801" Margin="0,0,6,0" FontSize="12"/>
+        <TextBox Grid.Column="1" Text="{Binding MdFront}" Watermark="行情前置 tcp://…:17802" Margin="0,0,6,0" FontSize="12"/>
+        <TextBox Grid.Column="2" Text="{Binding UserId}" Watermark="账户" Margin="0,0,6,0" FontSize="12"/>
+        <TextBox Grid.Column="3" Text="{Binding Password}" PasswordChar="•" Watermark="密码" Margin="0,0,6,0" FontSize="12"/>
+        <TextBox Grid.Column="4" Text="{Binding Instruments}" Watermark="订阅合约" Margin="0,0,6,0" FontSize="12"/>
+        <Button Grid.Column="5" Command="{Binding ToggleConnectionCommand}" Margin="0,0,6,0" FontSize="13" MinWidth="64">
+          <Panel>
+            <TextBlock Text="登录" IsVisible="{Binding !IsConnected}" HorizontalAlignment="Center"/>
+            <TextBlock Text="登出" IsVisible="{Binding IsConnected}" HorizontalAlignment="Center"/>
+          </Panel>
+        </Button>
+        <Button Grid.Column="6" Content="刷新" Command="{Binding RefreshCommand}" Margin="0,0,8,0" FontSize="13" MinWidth="56"/>
+        <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <Panel Width="9" Height="9">
+            <Ellipse Width="9" Height="9" Fill="#4CAF50" IsVisible="{Binding IsConnected}"/>
+            <Ellipse Width="9" Height="9" Fill="#9E9E9E" IsVisible="{Binding !IsConnected}"/>
+          </Panel>
+          <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                     Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- ═══ 账户摘要条 ═══ -->
+    <Border Grid.Row="1" Padding="10,6" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="24">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="账户" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+          <TextBlock Text="{Binding AccountIdText}" FontSize="13" FontWeight="SemiBold"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="权益" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+          <TextBlock Text="{Binding BalanceText}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="可用" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+          <TextBlock Text="{Binding AvailableText}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="连接" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+          <TextBlock Text="{Binding ConnectionState}" FontSize="12"/>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- ═══ 主区：左行情板 | 右持仓+委托 ═══ -->
+    <Grid Grid.Row="2" ColumnDefinitions="460,6,*">
+
+      <!-- ── 行情板 ── -->
+      <Grid Grid.Column="0" RowDefinitions="Auto,*">
+        <Border Grid.Row="0" Padding="10,6" Background="{DynamicResource CardBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+          <Grid ColumnDefinitions="100,90,80,90,80">
+            <TextBlock Grid.Column="0" Text="合约" FontSize="12" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="1" Text="最新" FontSize="12" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="2" Text="涨跌" FontSize="12" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="3" Text="成交量" FontSize="12" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="4" Text="时间" FontSize="12" FontWeight="SemiBold"/>
+          </Grid>
+        </Border>
+        <ScrollViewer Grid.Row="1">
+          <ItemsControl ItemsSource="{Binding Quotes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Padding="10,4" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                  <Grid ColumnDefinitions="100,90,80,90,80">
+                    <TextBlock Grid.Column="0" Text="{Binding Instrument}" FontSize="13" FontWeight="SemiBold"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Last, StringFormat=F2}" FontSize="13" Foreground="{DynamicResource AccentBrush}"/>
+                    <TextBlock Grid.Column="2" FontSize="13" Text="{Binding Change, StringFormat=+0.00;-0.00;0.00}">
+                      <TextBlock.Styles>
+                        <Style Selector="TextBlock">
+                          <Setter Property="Foreground" Value="#4CAF50"/>
+                        </Style>
+                      </TextBlock.Styles>
+                    </TextBlock>
+                    <TextBlock Grid.Column="3" Text="{Binding Volume}" FontSize="13"/>
+                    <TextBlock Grid.Column="4" Text="{Binding Time}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+
+      <GridSplitter Grid.Column="1" Classes="split-v" Width="6" ResizeDirection="Columns"/>
+
+      <!-- ── 右侧：持仓（上） + 委托（下，含刷新按钮） ── -->
+      <Grid Grid.Column="2" RowDefinitions="*,Auto,240">
+        <!-- 持仓 -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,*">
+          <Border Grid.Row="0" Padding="10,6" Background="{DynamicResource CardBgBrush}"
+                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="110,60,70,90,90,90,110">
+              <TextBlock Grid.Column="0" Text="持仓·合约" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="1" Text="方向" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="2" Text="总仓" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="3" Text="开仓均价" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="4" Text="现价" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="5" Text="浮动盈亏" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="6" Text="今/昨" FontSize="12" FontWeight="SemiBold"/>
+            </Grid>
+          </Border>
+          <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Positions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Padding="10,4" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="110,60,70,90,90,90,110">
+                      <TextBlock Grid.Column="0" Text="{Binding Instrument}" FontSize="13" FontWeight="SemiBold"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Direction}" FontSize="13"/>
+                      <TextBlock Grid.Column="2" Text="{Binding Total}" FontSize="13"/>
+                      <TextBlock Grid.Column="3" Text="{Binding AvgPrice, StringFormat=F2}" FontSize="13"/>
+                      <TextBlock Grid.Column="4" Text="{Binding CurrentPrice, StringFormat=F2}" FontSize="13"/>
+                      <TextBlock Grid.Column="5" Text="{Binding Profit, StringFormat=F2}" FontSize="13"
+                                 Foreground="{DynamicResource AccentBrush}"/>
+                      <TextBlock Grid.Column="6" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}">
+                        <Run Text="{Binding Today}"/>/<Run Text="{Binding Yesterday}"/>
+                      </TextBlock>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+
+        <GridSplitter Grid.Row="1" Classes="split-h" Height="6" ResizeDirection="Rows"/>
+
+        <!-- 委托（手动刷新——空表 30s 超时已知边界） -->
+        <Grid Grid.Row="2" RowDefinitions="Auto,*">
+          <Border Grid.Row="0" Padding="10,4,10,4" Background="{DynamicResource CardBgBrush}"
+                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="120,110,80,90,70,70,90,Auto">
+              <TextBlock Grid.Column="0" Text="委托·Ref" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="1" Text="合约" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="2" Text="方向" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="3" Text="价格" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="4" Text="数量" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="5" Text="已成" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="6" Text="状态" FontSize="12" FontWeight="SemiBold"/>
+              <Button Grid.Column="7" Content="刷新" Command="{Binding RefreshOrdersCommand}" FontSize="11" Padding="8,2"/>
+            </Grid>
+          </Border>
+          <ScrollViewer Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Orders}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Padding="10,3" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="120,110,80,90,70,70,90,Auto">
+                      <TextBlock Grid.Column="0" Text="{Binding Ref}" FontSize="12"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Instrument}" FontSize="12" FontWeight="SemiBold"/>
+                      <TextBlock Grid.Column="2" Text="{Binding DirOffset}" FontSize="12"/>
+                      <TextBlock Grid.Column="3" Text="{Binding Price, StringFormat=F2}" FontSize="12"/>
+                      <TextBlock Grid.Column="4" Text="{Binding Volume}" FontSize="12"/>
+                      <TextBlock Grid.Column="5" Text="{Binding Traded}" FontSize="12"/>
+                      <TextBlock Grid.Column="6" Text="{Binding Status}" FontSize="12"/>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Grid>
+
+    </Grid>
+  </Grid>
+</UserControl>

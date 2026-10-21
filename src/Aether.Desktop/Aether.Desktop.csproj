@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <AssemblyName>Aether.Desktop</AssemblyName>
+    <RootNamespace>Aether.Desktop</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ⑩ 布局引擎（零业务依赖的平台层） -->
+    <ProjectReference Include="..\..\..\aether-workbench\src\Aether.Workbench\Aether.Workbench.csproj" />
+    <!-- ⑦ 客户端 CTP SDK 封装（ICtpSession 官方链路；③ 契约 + ② SDK 经它传递） -->
+    <ProjectReference Include="..\..\..\ctp-net-client\src\Ctp.Net.Client\Ctp.Net.Client.csproj" />
+  </ItemGroup>
+
+  <!-- libctp_native.dylib 的 @rpath 依赖三个 macOS frameworks（thosttraderapi_se/thostmduserapi_se/MacDataCollect）——
+       ctp-net-core 的 Content 只带 build/native 的 dylib/so/dll，frameworks 不在其中；dyld 载入时全部链接镜像即解析，
+       缺一个就 DllNotFoundException（登录即首个 P/Invoke 处爆）。构建后复制到输出目录
+       （cp -R 保留 frameworks 的 Versions/A symlink 结构；重复执行为幂等合并覆盖）。同款 target 镜像自 ⑧ CtpConsole。 -->
+  <PropertyGroup>
+    <CtpSdkDir>$(MSBuildThisFileDirectory)../../../ctp-net-core/ctp-sdk/macos-universal</CtpSdkDir>
+  </PropertyGroup>
+  <Target Name="CopyCtpMacFrameworks" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Message Importance="high" Text="复制 CTP macOS frameworks → $(OutDir)" />
+    <Exec Command='cp -R "$(CtpSdkDir)/thosttraderapi_se.framework" "$(OutDir)"' />
+    <Exec Command='cp -R "$(CtpSdkDir)/thostmduserapi_se.framework" "$(OutDir)"' />
+    <Exec Command='cp -R "$(CtpSdkDir)/MacDataCollect.framework" "$(OutDir)"' />
+  </Target>
+
+</Project>
