@@ -1,11 +1,169 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="Aether.Desktop.Wallet.WalletView">
-  <!-- M2（规划中）：① LedgerClient + 充值/提币（对接 ⑧ doc/funding-runbook.md 的日常操作面） -->
-  <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-    <TextBlock Text="钱包" FontSize="20" FontWeight="SemiBold"
-               Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Center"/>
-    <TextBlock Text="M2——① Aether.Ledger（AQ 充值/提币）接线规划中"
-               FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
-  </StackPanel>
+
+  <ScrollViewer>
+    <StackPanel Margin="16,12" Spacing="10" MaxWidth="800" HorizontalAlignment="Left">
+
+      <!-- ═══ 连接设置（链 + 交易所登录） ═══ -->
+      <Border Padding="12,8" CornerRadius="8"
+              Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="Auto,Auto,*">
+            <TextBlock Grid.Column="0" Text="连接设置" FontSize="14" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="1" Text="{Binding ChainStatus}" FontSize="11" Margin="8,0,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+            <Button Grid.Column="2" Content="保存" Command="{Binding SaveSettingsCommand}" FontSize="11" Padding="10,3" HorizontalAlignment="Right"/>
+          </Grid>
+
+          <!-- 链配置 -->
+          <TextBlock Text="链节点配置" FontSize="12" FontWeight="SemiBold" Margin="0,4,0,0"
+                     Foreground="{DynamicResource AccentBrush}"/>
+          <Grid ColumnDefinitions="80,180,80,180" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0" Text="节点地址" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding NodeAddress}" FontSize="12" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="2" Text="custody" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="3" Text="{Binding CustodyAddress}" FontSize="12"/>
+          </Grid>
+          <Grid ColumnDefinitions="80,180,80,180" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0" Text="高度" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="1" Text="{Binding ChainHeight}" FontSize="12"/>
+            <TextBlock Grid.Column="2" Text="chainId" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="3" Text="{Binding ChainId}" FontSize="12"/>
+          </Grid>
+
+          <!-- 交易所登录 -->
+          <TextBlock Text="交易所登录" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,0"
+                     Foreground="{DynamicResource AccentBrush}"/>
+          <Grid ColumnDefinitions="80,120,80,120,80,*" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0" Text="账户" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding LoginUser}" FontSize="12" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="2" Text="密码" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="3" Text="{Binding LoginPassword}" FontSize="12" PasswordChar="•" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="4" Text="前置" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="5" Text="{Binding LoginFront}" FontSize="12"/>
+          </Grid>
+          <Grid ColumnDefinitions="80,180,*,Auto" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0" Text="行情前置" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding LoginMdFront}" FontSize="12" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="2" Text="{Binding LoginStatus}" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <Button Grid.Column="3" Content="登录交易所" Command="{Binding LoginExchangeCommand}" FontSize="12" Padding="10,4"/>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ 钱包管理（创建流程 / 导入 / 当前钱包） ═══ -->
+      <Border Padding="12,8" CornerRadius="8"
+              Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <StackPanel Spacing="6">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+            <TextBlock Grid.Column="0" Text="钱包" FontSize="14" FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="2" Text="{Binding ChainAqBalance, StringFormat='链上 AQ {0}'}" FontSize="12"
+                       Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Button Grid.Column="3" Content="查链" Command="{Binding RefreshChainCommand}" FontSize="11" Padding="8,3"/>
+          </Grid>
+
+          <!-- 创建流程（IsCreating=true 时显示种子） -->
+          <StackPanel Spacing="6" IsVisible="{Binding IsCreating}">
+            <TextBlock Text="⚠ 新钱包种子（只此一次展示）" FontSize="13" FontWeight="SemiBold"
+                       Foreground="{DynamicResource AccentBrush}"/>
+            <TextBox Text="{Binding NewSeedHex}" FontSize="11" IsReadOnly="True"
+                     TextWrapping="Wrap" MinHeight="52"
+                     Foreground="{DynamicResource AccentBrush}"/>
+            <TextBlock FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Text="这串 hex 是钱包的全部财富与身份：离线抄录/密码管理器保存（丢失 = 币永久丢失，没人能找回）。"/>
+            <CheckBox Content="我已离线备份种子" IsChecked="{Binding SeedBackedUp}" Margin="0,4,0,4"/>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="保存钱包" Command="{Binding ConfirmCreateCommand}" FontSize="12" Padding="12,4"
+                      IsEnabled="{Binding SeedBackedUp}"/>
+              <Button Content="取消" Command="{Binding CancelCreateCommand}" FontSize="12" Padding="12,4"/>
+            </StackPanel>
+          </StackPanel>
+
+          <!-- 非创建状态：生成/导入入口 -->
+          <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2,0,0" IsVisible="{Binding !IsCreating}">
+            <TextBox Grid.Column="0" Text="{Binding SeedText}" FontSize="12"
+                     PlaceholderText="64 位 hex 种子（导入已有钱包）" PasswordChar="•"/>
+            <Button Grid.Column="1" Content="导入" Command="{Binding ImportWalletCommand}" FontSize="12" Padding="10,4" Margin="4,0,0,0"/>
+            <Button Grid.Column="2" Content="生成新钱包" Command="{Binding GenerateNewWalletCommand}" FontSize="12" Padding="10,4" Margin="4,0,0,0"/>
+          </Grid>
+
+          <!-- 当前钱包信息 -->
+          <Grid ColumnDefinitions="80,*,80,*" Margin="0,4,0,0">
+            <TextBlock Grid.Column="0" Text="地址" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="1" Text="{Binding WalletAddress}" FontSize="11" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Grid.Column="2" Text="币" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="3" Text="{Binding ChainCoinBalance}" FontSize="12"/>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ 场内现金（交易所） ═══ -->
+      <Border Padding="12,8" CornerRadius="8"
+              Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <StackPanel Spacing="4">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <TextBlock Grid.Column="0" Text="场内现金（交易所）" FontSize="14" FontWeight="SemiBold"/>
+            <Button Grid.Column="2" Content="查询" Command="{Binding RefreshAccountCommand}" FontSize="11" Padding="8,3"/>
+          </Grid>
+          <Grid ColumnDefinitions="80,*,80,*,80,*" Margin="0,4,0,0">
+            <TextBlock Grid.Column="0" Text="账户" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="1" Text="{Binding ExchangeAccountId}" FontSize="12"/>
+            <TextBlock Grid.Column="2" Text="权益" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="3" Text="{Binding ExchangeBalance}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource AccentBrush}"/>
+            <TextBlock Grid.Column="4" Text="可用" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="5" Text="{Binding ExchangeAvailable}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource AccentBrush}"/>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ 充值（AQ → 场内） ═══ -->
+      <Border Padding="12,8" CornerRadius="8"
+              Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <StackPanel Spacing="6">
+          <TextBlock Text="充值（AQ → 场内现金）" FontSize="14" FontWeight="SemiBold"/>
+          <Grid ColumnDefinitions="80,140,80,140,*" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0" Text="归账账户" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding DepositAccount}" FontSize="12" Margin="0,0,8,0"
+                     PlaceholderText="与登录账号一致"/>
+            <TextBlock Grid.Column="2" Text="AQ 数量" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="3" Text="{Binding DepositAmount}" FontSize="12" Margin="0,0,8,0"/>
+            <Button Grid.Column="4" Content="充值" Command="{Binding DepositCommand}" FontSize="12" Padding="12,4"/>
+          </Grid>
+          <TextBlock Text="链上向 custody 转 AQ（memo=归账账户），桥 1 秒对账入账场内现金（1 AQ = 1 现金）"
+                     FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ 提币（场内 → AQ） ═══ -->
+      <Border Padding="12,8" CornerRadius="8"
+              Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+        <StackPanel Spacing="6">
+          <TextBlock Text="提币（场内现金 → AQ）" FontSize="14" FontWeight="SemiBold"/>
+          <Grid ColumnDefinitions="80,140,80,140,*" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0" Text="交易所账户" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding WithdrawUser}" FontSize="12" Margin="0,0,8,0"/>
+            <TextBlock Grid.Column="2" Text="密码" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="3" Text="{Binding WithdrawPassword}" FontSize="12" PasswordChar="•" Margin="0,0,8,0"/>
+            <Button Grid.Column="4" Content="提币" Command="{Binding WithdrawCommand}" FontSize="12" Padding="12,4"/>
+          </Grid>
+          <Grid ColumnDefinitions="80,140" Margin="0,2,0,0">
+            <TextBlock Grid.Column="0" Text="AQ 数量" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding WithdrawAmount}" FontSize="12"/>
+          </Grid>
+          <TextBlock Text="经交易所 JSON-RPC withdraw op（登录鉴权 + 静态可用现金闸门；目标地址 = 当前钱包地址）"
+                     FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- 状态栏 -->
+      <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                 TextWrapping="Wrap"/>
+
+    </StackPanel>
+  </ScrollViewer>
 </UserControl>

@@ -23,6 +23,10 @@
     <ProjectReference Include="..\..\..\aether-workbench\src\Aether.Workbench\Aether.Workbench.csproj" />
     <!-- ⑦ 客户端 CTP SDK 封装（ICtpSession 官方链路；③ 契约 + ② SDK 经它传递） -->
     <ProjectReference Include="..\..\..\ctp-net-client\src\Ctp.Net.Client\Ctp.Net.Client.csproj" />
+    <!-- ① 链引擎（LedgerClient 查链上余额/链信息——钱包页用） -->
+    <ProjectReference Include="..\..\..\aether-ledger\src\Aether.Ledger\Aether.Ledger.csproj" />
+    <!-- ④ 交易所 RPC（SimRpcClient withdraw op——钱包页提币用） -->
+    <ProjectReference Include="..\..\..\aether-exchange\src\Aether.Exchange.Rpc\Aether.Exchange.Rpc.csproj" />
   </ItemGroup>
 
   <!-- libctp_native.dylib 的 @rpath 依赖三个 macOS frameworks（thosttraderapi_se/thostmduserapi_se/MacDataCollect）——

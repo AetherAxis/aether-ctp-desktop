@@ -39,8 +39,7 @@ public partial class FuturesViewModel : ObservableObject
 
         // 启动同步恢复上次登录档案（JsonPreferencesStore.GetAsync 同步完成，UI 线程安全）
         Front = _preferences.GetAsync(PrefFront).GetAwaiter().GetResult() ?? "tcp://127.0.0.1:17801";
-        MdFront = _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult() ?? "tcp://127.0.0.1:17802";
-        UserId = _preferences.GetAsync(PrefUser).GetAwaiter().GetResult() ?? "";
+        MdFront = _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult() ?? "tcp://127.0.0.1:17802";        UserId = _preferences.GetAsync(PrefUser).GetAwaiter().GetResult() ?? "";
         Password = _preferences.GetAsync(PrefPass).GetAwaiter().GetResult() ?? "";
         Instruments = _preferences.GetAsync(PrefInstruments).GetAwaiter().GetResult() ?? "ax001";
 
@@ -52,6 +51,61 @@ public partial class FuturesViewModel : ObservableObject
 
         _poll = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _poll.Tick += (_, _) => _ = PollAsync();
+
+        // ★ 自动订阅行情——MD 腿不需要交易登录（⑤ 注释："凭据不校验——行情订阅无账户语义"）
+        // 打开 App 即看行情，登录按钮只管交易（账户/持仓/委托查询）
+        _ = AutoSubscribeAsync();
+    }
+
+    /// <summary>自动订阅行情（无需登录——MD 独立腿，凭据不校验）。用配置里的行情前置 + 默认合约。</summary>
+    private async Task AutoSubscribeAsync()
+    {
+        try
+        {
+            var symbols = Instruments.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (symbols.Length == 0) return;
+            StatusText = "行情订阅中…";
+            await _session.SubscribeMarketDataAsync(new CtpMarketDataConnect
+            {
+                MdFrontAddress = MdFront.Trim(),
+                BrokerId = "9999",
+                UserId = string.IsNullOrWhiteSpace(UserId) ? "guest" : UserId.Trim(),
+                Password = Password ?? "",
+            }, symbols);
+            StatusText = $"已订阅 {string.Join(",", symbols)}（行情不需要登录；点「登录」查账户/持仓/委托）";
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"行情订阅失败：{ex.Message}（检查行情前置地址）";
+        }
+    }
+
+    // ── 连接预设（本地/服务器 = 自有仿真前置→ax001；SimNow = 真实前置→真实合约）──
+    public IReadOnlyList<ConnectionPreset> Presets { get; } = new[]
+    {
+        new ConnectionPreset("本地", "tcp://127.0.0.1:17801", "tcp://127.0.0.1:17802", "ax001"),
+        new ConnectionPreset("服务器", "tcp://117.72.186.128:17801", "tcp://117.72.186.128:17802", "ax001"),
+        new ConnectionPreset("SimNow", "tcp://180.168.146.187:10130", "tcp://180.168.146.187:10131", "m2701"),
+    };
+
+    private ConnectionPreset? _selectedPreset;
+    public ConnectionPreset? SelectedPreset
+    {
+        get => _selectedPreset;
+        set
+        {
+            if (SetProperty(ref _selectedPreset, value) && value != null)
+            {
+                Front = value.Front;
+                MdFront = value.MdFront;
+                Instruments = value.DefaultInstrument;
+                // 清旧行情、切订阅（MD 不需要登录）
+                Quotes.Clear();
+                _rowsByInstrument.Clear();
+                StatusText = $"已切到「{value.Name}」（{value.Front}，合约 {value.DefaultInstrument}）";
+                _ = AutoSubscribeAsync();
+            }
+        }
     }
 
     // ── 登录档案 ──
@@ -114,20 +168,7 @@ public partial class FuturesViewModel : ObservableObject
             await _preferences.SetAsync(PrefUser, UserId.Trim());
             await _preferences.SetAsync(PrefPass, Password);
             await _preferences.SetAsync(PrefInstruments, Instruments.Trim());
-            StatusText = $"已登录：交易日 {login.TradingDay} FrontId={login.FrontId} SessionId={login.SessionId}";
-
-            var symbols = Instruments.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (symbols.Length > 0)
-            {
-                await _session.SubscribeMarketDataAsync(new CtpMarketDataConnect
-                {
-                    MdFrontAddress = MdFront.Trim(),
-                    BrokerId = Broker.Trim(),
-                    UserId = UserId.Trim(),
-                    Password = Password,
-                }, symbols);
-                StatusText += $"（已订阅 {string.Join(",", symbols)}）";
-            }
+            StatusText = $"已登录：交易日 {login.TradingDay}（行情已在启动时自动订阅）";
             _ = RefreshAccountPositionsAsync();
             _ = RefreshOrdersAsync();
             _poll.Start();
@@ -297,6 +338,9 @@ public partial class FuturesViewModel : ObservableObject
         _ => $"状态{raw}",
     };
 }
+
+/// <summary>连接预设（快速切换本地/远程/真实前置）。</summary>
+public record ConnectionPreset(string Name, string Front, string MdFront, string DefaultInstrument);
 
 /// <summary>行情板行（按 instrument 原位更新——UI 线程）。</summary>
 public partial class TickRow : ObservableObject

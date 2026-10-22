@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Aether.Desktop.Strategy.StrategyView">
+
+  <Grid RowDefinitions="Auto,Auto,*" Background="{DynamicResource ContentBgBrush}">
+
+    <!-- ═══ 策略选择 + 配置 + 运行控制 ═══ -->
+    <Border Grid.Row="0" Padding="16,12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
+            Background="{DynamicResource SidebarBgBrush}">
+      <Grid ColumnDefinitions="280,20,*">
+        <!-- 策略列表 -->
+        <Border Grid.Column="0" CornerRadius="8" Background="{DynamicResource CardBgBrush}"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="8">
+          <StackPanel Spacing="2">
+            <TextBlock Text="策略" FontSize="14" FontWeight="SemiBold" Margin="4,4,0,6"/>
+            <ItemsControl ItemsSource="{Binding Strategies}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Classes="strategy-item" Command="{Binding $parent[ItemsControl].DataContext.SelectStrategyCommand}"
+                          CommandParameter="{Binding}" Margin="0,1" Padding="8,6" HorizontalAlignment="Stretch"
+                          Background="Transparent" CornerRadius="6">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold"/>
+                      <TextBlock Text="{Binding Description}" FontSize="10" TextTrimming="CharacterEllipsis"
+                                 Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- 配置面板 -->
+        <Grid Grid.Column="2" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*" Margin="0,0,0,0">
+          <Grid Grid.Row="0" ColumnDefinitions="80,*,80,*" Margin="0,0,0,8">
+            <TextBlock Grid.Column="0" Text="合约" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding Instrument}" FontSize="13" Margin="0,0,12,0"/>
+            <TextBlock Grid.Column="2" Text="分辨率" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <ComboBox Grid.Column="3" SelectedIndex="0" FontSize="13">
+              <ComboBoxItem Content="Tick"/>
+              <ComboBoxItem Content="Second"/>
+              <ComboBoxItem Content="Minute"/>
+            </ComboBox>
+          </Grid>
+          <Grid Grid.Row="1" ColumnDefinitions="80,*,80,*" Margin="0,0,0,8">
+            <TextBlock Grid.Column="0" Text="开仓上限" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="1" Text="{Binding MaxVolume}" FontSize="13" Margin="0,0,12,0"/>
+            <TextBlock Grid.Column="2" Text="初始资金" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
+            <TextBox Grid.Column="3" Text="{Binding InitialCash}" FontSize="13"/>
+          </Grid>
+          <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+            <Button Content="运行回测" Command="{Binding RunBacktestCommand}" FontSize="13" Padding="16,6"/>
+            <Button Content="启动实盘" Command="{Binding StartLiveCommand}" FontSize="13" Padding="16,6"/>
+            <Button Content="停止" Command="{Binding StopCommand}" FontSize="13" Padding="16,6"/>
+          </StackPanel>
+          <TextBlock Grid.Row="3" Text="{Binding StatusText}" FontSize="11" Margin="0,8,0,0"
+                     Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+        </Grid>
+      </Grid>
+    </Border>
+
+    <!-- ═══ 运行状态 ═══ -->
+    <Border Grid.Row="1" Padding="16,6" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="16">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="状态" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+          <TextBlock Text="{Binding RunStatus}" FontSize="13" FontWeight="SemiBold"/>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <!-- ═══ 结果区（占位——将来接 ⑥ 的回测结果/实盘持仓） ═══ -->
+    <ScrollViewer Grid.Row="2">
+      <StackPanel Margin="16,12" Spacing="12" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="策略结果" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center"
+                   Foreground="{DynamicResource TextPrimaryBrush}"/>
+        <TextBlock Text="回测权益曲线 + 实盘持仓/成交记录——待 ⑥ 接线"
+                   FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+        <TextBlock Text="当前实盘经 ⑧ CtpConsole --run-strategy [策略] [合约] --real 运行"
+                   FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" HorizontalAlignment="Center"/>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

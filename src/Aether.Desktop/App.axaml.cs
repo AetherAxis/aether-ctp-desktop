@@ -1,5 +1,7 @@
 using System.IO;
 using Aether.Desktop.Futures;
+using Aether.Desktop.Strategy;
+using Aether.Desktop.Wallet;
 using Aether.Workbench;
 using Aether.Workbench.Abstractions;
 using Avalonia;
@@ -28,6 +30,8 @@ public partial class App : Application
         services.AddWorkbench(DesktopWorkspace.Definition);                            // ⑩ 引擎 + 三 tab 布局
         services.AddSingleton<IViewRegistryContributor, AppViewContributor>();
         services.AddSingleton<FuturesViewModel>();
+        services.AddSingleton<StrategyViewModel>();
+        services.AddSingleton<WalletViewModel>();
         var provider = services.BuildServiceProvider();
         WorkbenchServices.Attach(provider);   // ⑩ view 层 code-behind 经此解析服务
 
