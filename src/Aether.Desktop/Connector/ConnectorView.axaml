@@ -1,0 +1,120 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Aether.Desktop.Connector.ConnectorView">
+
+  <UserControl.Styles>
+    <Style Selector="Button.preset-chip">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="12,5" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.preset-chip:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentTintBgBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer Background="{DynamicResource ContentBgBrush}">
+    <StackPanel Spacing="16" Margin="24,20">
+
+      <!-- ═══ 预设 chips ═══ -->
+      <Border Padding="14,10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+              Background="{DynamicResource CardBgBrush}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="连接预设" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="SemiBold"/>
+          <ItemsControl ItemsSource="{Binding DefaultPresets}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Classes="preset-chip"
+                        Content="{Binding Name}"
+                        Margin="0,0,6,6"
+                        Command="{Binding $parent[UserControl].DataContext.ApplyPresetCommand}"
+                        CommandParameter="{Binding}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap">
+            点预设 = 填入地址 + 立即订阅行情（MD 腿独立，不需交易登录）。SimNow 等真实柜台需手动填主连代码。
+          </TextBlock>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ 登录表单 ═══ -->
+      <Border Padding="14,12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+              Background="{DynamicResource CardBgBrush}">
+        <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+          <Grid.Styles>
+            <Style Selector="Grid">
+              <Setter Property="RowSpacing" Value="10"/>
+            </Style>
+          </Grid.Styles>
+
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="交易前置" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="0" Grid.Column="1" Text="{Binding Front}" FontSize="12"
+                    PlaceholderText="tcp://ip:port（本地仿真 = tcp://127.0.0.1:17801）"/>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="行情前置" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="1" Grid.Column="1" Text="{Binding MdFront}" FontSize="12"
+                    PlaceholderText="tcp://ip:port（本地仿真 = tcp://127.0.0.1:17802）"/>
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="经纪商代码" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="2" Grid.Column="1" Text="{Binding Broker}" FontSize="12"/>
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="用户号" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="3" Grid.Column="1" Text="{Binding UserId}" FontSize="12"/>
+
+          <TextBlock Grid.Row="4" Grid.Column="0" Text="密码" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="4" Grid.Column="1" Text="{Binding Password}" PasswordChar="•" FontSize="12"/>
+
+          <TextBlock Grid.Row="5" Grid.Column="0" Text="AppId" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="5" Grid.Column="1" Text="{Binding AppId}" FontSize="12"/>
+
+          <TextBlock Grid.Row="6" Grid.Column="0" Text="授权码" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="6" Grid.Column="1" Text="{Binding AuthCode}" FontSize="12"/>
+
+          <TextBlock Grid.Row="7" Grid.Column="0" Text="订阅品种" FontSize="12" VerticalAlignment="Center"/>
+          <TextBox  Grid.Row="7" Grid.Column="1" Text="{Binding Instruments}" FontSize="12"
+                    PlaceholderText="逗号分隔，如 ax001（预设自动填）"/>
+
+          <CheckBox Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2" Content="启动时自动连接"
+                    IsChecked="{Binding AutoLogin}" FontSize="12"/>
+        </Grid>
+      </Border>
+
+      <!-- ═══ 连接状态 + 按钮 ═══ -->
+      <Border Padding="14,10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+              Background="{DynamicResource CardBgBrush}">
+        <Grid ColumnDefinitions="Auto,*">
+          <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <Panel Width="10" Height="10">
+              <Ellipse Width="10" Height="10" Fill="#4CAF50" IsVisible="{Binding IsConnected}"/>
+              <Ellipse Width="10" Height="10" Fill="#9E9E9E" IsVisible="{Binding !IsConnected}"/>
+            </Panel>
+            <TextBlock Text="{Binding StatusText}" FontSize="13" FontWeight="SemiBold"/>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="断开" Command="{Binding ToggleConnectionCommand}" FontSize="13" Padding="16,6"
+                    IsVisible="{Binding IsConnected}"/>
+            <Button Content="连接" Classes="primary" Command="{Binding ToggleConnectionCommand}" FontSize="13" Padding="16,6"
+                    IsVisible="{Binding !IsConnected}" IsEnabled="{Binding !IsConnecting}"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- ═══ 提示 ═══ -->
+      <TextBlock FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,4,0,0">
+        说明：CTP 行情订阅独立于交易登录——MD 腿不校验凭据，打开 App 即可看到行情。登录栏只用于查询账户/持仓/委托。
+        自有服务器（本地 127.0.0.1 / 远程 117.72.186.128）默认只上市 ax001（Aether 币价期货）；
+        SimNow 等真实柜台的主连代码须手动填写。
+      </TextBlock>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

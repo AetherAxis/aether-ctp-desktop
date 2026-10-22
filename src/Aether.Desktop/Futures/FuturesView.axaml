@@ -4,57 +4,16 @@
 
   <Grid RowDefinitions="Auto,Auto,*" Background="{DynamicResource ContentBgBrush}">
 
-    <!-- ═══ 登录栏：预设选择 + 前置地址 / 账户 / 订阅合约 / 登录 ═══ -->
-    <Border Grid.Row="0" Padding="10,6" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1"
-            Background="{DynamicResource SidebarBgBrush}">
-      <StackPanel Spacing="4">
-        <!-- 预设切换（本地实验室/标准/服务器/真实 SimNow） -->
-        <StackPanel Orientation="Horizontal" Spacing="4">
-          <TextBlock Text="预设" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"/>
-          <ItemsControl ItemsSource="{Binding Presets}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="2"/>
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <Button Content="{Binding Name}" FontSize="11" Padding="8,2" Background="Transparent"
-                        Command="{Binding $parent[ItemsControl].((vm:FuturesViewModel)DataContext).SelectedPreset}"
-                        CommandParameter="{Binding}"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4"/>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-        <Grid ColumnDefinitions="180,180,90,110,110,Auto,Auto,*" >
-          <TextBox Grid.Column="0" Text="{Binding Front}" PlaceholderText="交易前置 tcp://…:17801" Margin="0,0,6,0" FontSize="12"/>
-          <TextBox Grid.Column="1" Text="{Binding MdFront}" PlaceholderText="行情前置 tcp://…:17802" Margin="0,0,6,0" FontSize="12"/>
-          <TextBox Grid.Column="2" Text="{Binding UserId}" PlaceholderText="账户" Margin="0,0,6,0" FontSize="12"/>
-          <TextBox Grid.Column="3" Text="{Binding Password}" PasswordChar="•" PlaceholderText="密码" Margin="0,0,6,0" FontSize="12"/>
-          <TextBox Grid.Column="4" Text="{Binding Instruments}" PlaceholderText="订阅合约" Margin="0,0,6,0" FontSize="12"/>
-          <Button Grid.Column="5" Command="{Binding ToggleConnectionCommand}" Margin="0,0,6,0" FontSize="13" MinWidth="64">
-            <Panel>
-              <TextBlock Text="登录" IsVisible="{Binding !IsConnected}" HorizontalAlignment="Center"/>
-              <TextBlock Text="登出" IsVisible="{Binding IsConnected}" HorizontalAlignment="Center"/>
-            </Panel>
-          </Button>
-          <Button Grid.Column="6" Content="刷新" Command="{Binding RefreshCommand}" Margin="0,0,8,0" FontSize="13" MinWidth="56"/>
-          <StackPanel Grid.Column="7" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-            <Panel Width="9" Height="9">
-              <Ellipse Width="9" Height="9" Fill="#4CAF50" IsVisible="{Binding IsConnected}"/>
-              <Ellipse Width="9" Height="9" Fill="#9E9E9E" IsVisible="{Binding !IsConnected}"/>
-            </Panel>
-            <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis"
-                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-          </StackPanel>
-        </Grid>
-      </StackPanel>
-    </Border>
-
-    <!-- ═══ 账户摘要条 ═══ -->
-    <Border Grid.Row="1" Padding="10,6" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+    <!-- ═══ 账户摘要条（顶部 = 连接状态 + 账户/权益/可用 + 刷新 ═══ -->
+    <Border Grid.Row="0" Padding="10,6" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
       <StackPanel Orientation="Horizontal" Spacing="24">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Panel Width="10" Height="10">
+            <Ellipse Width="10" Height="10" Fill="#4CAF50" IsVisible="{Binding IsConnected}"/>
+            <Ellipse Width="10" Height="10" Fill="#9E9E9E" IsVisible="{Binding !IsConnected}"/>
+          </Panel>
+          <TextBlock Text="{Binding ConnectionState}" FontSize="12" VerticalAlignment="Center"/>
+        </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="6">
           <TextBlock Text="账户" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
           <TextBlock Text="{Binding AccountIdText}" FontSize="13" FontWeight="SemiBold"/>
@@ -68,14 +27,15 @@
           <TextBlock Text="{Binding AvailableText}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}"/>
         </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <TextBlock Text="连接" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
-          <TextBlock Text="{Binding ConnectionState}" FontSize="12"/>
+          <Button Content="刷新" Command="{Binding RefreshCommand}" FontSize="12" Padding="8,3"/>
         </StackPanel>
+        <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
       </StackPanel>
     </Border>
 
     <!-- ═══ 主区：左行情板 | 右持仓+委托 ═══ -->
-    <Grid Grid.Row="2" ColumnDefinitions="460,6,*">
+    <Grid Grid.Row="1" ColumnDefinitions="460,6,*">
 
       <!-- ── 行情板 ── -->
       <Grid Grid.Column="0" RowDefinitions="Auto,*">
@@ -158,7 +118,7 @@
 
         <GridSplitter Grid.Row="1" Classes="split-h" Height="6" ResizeDirection="Rows"/>
 
-        <!-- 委托（手动刷新——空表 30s 超时已知边界） -->
+        <!-- 委托（手动刷新） -->
         <Grid Grid.Row="2" RowDefinitions="Auto,*">
           <Border Grid.Row="0" Padding="10,4,10,4" Background="{DynamicResource CardBgBrush}"
                   BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">

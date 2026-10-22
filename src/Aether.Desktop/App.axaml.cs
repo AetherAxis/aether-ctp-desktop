@@ -1,4 +1,5 @@
 using System.IO;
+using Aether.Desktop.Connector;
 using Aether.Desktop.Futures;
 using Aether.Desktop.Strategy;
 using Aether.Desktop.Wallet;
@@ -29,6 +30,7 @@ public partial class App : Application
         services.AddCtpInfrastructure(sqliteDbPath: Path.Combine(dataDir, "ctp.db"));   // ⑦ 同款组件（多档案凭据仓）
         services.AddWorkbench(DesktopWorkspace.Definition);                            // ⑩ 引擎 + 三 tab 布局
         services.AddSingleton<IViewRegistryContributor, AppViewContributor>();
+        services.AddSingleton<ConnectorViewModel>();
         services.AddSingleton<FuturesViewModel>();
         services.AddSingleton<StrategyViewModel>();
         services.AddSingleton<WalletViewModel>();
