@@ -85,3 +85,14 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 | 6 | P2 | 策略页为桩 | `RunBacktest`/`StartLive` 只改状态文本，无 ⑥ 运行时引用 | 接 ⑥ `IBacktestRuntime`/`ILiveTradingRuntime` | 新增依赖，验证成本高 |
 | 7 | P2 | 预设硬编码 | `DefaultPresets` 写死 `117.72.186.128` 与本地端口 | 外置配置，内置默认兜底 | 需定义格式与回退 |
 | 8 | P2 | 跨仓源码耦合 | 四个 `ProjectReference` 指上级目录；CI checkout 六仓 | P4 推进 PackageReference + 固定版本 | 需建包发布与版本对齐 |
+
+## 7. 本轮升级落地（2026-10-24）
+
+- **测试项目**（第 1 项）：新建 `tests/Aether.Desktop.Tests`（29 例全绿）：偏好存储（同步完成契约、设 null 即删键、跨实例持久化、坏文件当空重建、密码键可彻底删掉）、连接预设档案（用户档优先/坏档回退内置/空清单兜底/单条坏数据只丢自己/序列化往返）、显示格式（方向/开平/委托状态字符→中文）。CI 加 Test 步骤。
+- **持仓均价与浮亏**（第 3 项）：不再拿 `tick.LastPrice` 冒充开仓价、不再把 `Profit` 硬填 0。**契约补 `PositionCost`**（原生 `PositionCost` 一路补齐：② SDK `Position` → ③ `CtpPosition` → ⑦ mapper），界面列改为「持仓成本」按原值显示（均价 = 成本 ÷ (手数 × 合约乘数)，乘数不在契约里，故不折算）；浮盈改用柜台口径 `PositionProfit`。tick 回调只更新现价——**不再用「价差 × 手数」自己算**（那是价格单位不是金额，且与昨仓结算价基准不符）。
+- **自动轮询**（第 4 项）：`DispatcherTimer` 3s 轮询账户+持仓（与 README 一致；原来类注释宣称轮询但代码里没有），连接时启动/断开停止，`_pollBusy` 防重入。委托表仍是手动刷新（空表查询 30s 超时为已知边界）。
+- **密码明文落盘**（第 5 项）：**密码不再持久化**，并在构造时清掉历史版本写下的明文键；`AutoLogin` 因冷启动无密码而无法自动完成登录——改为明确提示而不是拿空密码去撞柜台。要恢复「记住密码/自动登录」须接系统钥匙串（macOS Keychain / Windows DPAPI / libsecret），偏好只存引用。
+- **预设硬编码**（第 7 项）：新增 `ConnectionPresets`（偏好键 `connector.presets` 里的 JSON 优先，无档/坏档/全无效/空清单一律回退内置，清单永不为空），`ConnectorViewModel.Presets` 绑定之，界面改绑 `{Binding Presets}`。
+- **README**（第 2 项）：按实际四 tab（连接器/交易/策略/钱包）重写里程碑与组成表，补「密码不落盘」「3s 轮询」「委托手动刷新」的真实行为。
+
+**未做（有意）**：第 6 项策略页接 ⑥ `IBacktestRuntime`/`ILiveTradingRuntime`（新增依赖 + 验证成本高）；第 8 项切 PackageReference 需先发包。

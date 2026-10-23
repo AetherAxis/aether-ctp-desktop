@@ -27,18 +27,27 @@ public partial class ConnectorViewModel : ObservableObject
     private const string PrefAuth = "connector.auth";
     private const string PrefAutoLogin = "connector.autologin";
     private const string PrefPreset = "connector.preset";
+    private const string PrefPresets = "connector.presets";   // 预设清单档案（JSON 数组；见 ConnectionPresets）
 
     public ConnectorViewModel(ICtpSession session, IPreferencesStore preferences)
     {
         _session = session;
         _preferences = preferences;
 
+        // 预设清单：用户档案优先（无档/坏档回退内置，保证非空）
+        Presets = ConnectionPresets.Load(_preferences.GetAsync(PrefPresets).GetAwaiter().GetResult());
+
         // 启动同步恢复上次登录档案
-        Front = _preferences.GetAsync(PrefFront).GetAwaiter().GetResult() ?? DefaultPresets[0].Front;
-        MdFront = _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult() ?? DefaultPresets[0].MdFront;
+        Front = _preferences.GetAsync(PrefFront).GetAwaiter().GetResult() ?? Presets[0].Front;
+        MdFront = _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult() ?? Presets[0].MdFront;
         Broker = _preferences.GetAsync(PrefBroker).GetAwaiter().GetResult() ?? "9999";
         UserId = _preferences.GetAsync(PrefUser).GetAwaiter().GetResult() ?? "";
-        Password = _preferences.GetAsync(PrefPass).GetAwaiter().GetResult() ?? "";
+        // 密码**不落盘**（2026-10-24）：旧版把密码明文写进 preferences.json（同机任何进程可读）。
+        // 现在启动不恢复密码，并顺手清掉历史版本留下的明文键。要恢复「记住密码/自动登录」，
+        // 得接系统钥匙串（macOS Keychain / Windows DPAPI / libsecret）——偏好文件只存引用。
+        if (_preferences.GetAsync(PrefPass).GetAwaiter().GetResult() is not null)
+            _preferences.SetAsync(PrefPass, null).GetAwaiter().GetResult();
+        Password = "";
         AppId = _preferences.GetAsync(PrefAppId).GetAwaiter().GetResult() ?? "simnow_client_test";
         AuthCode = _preferences.GetAsync(PrefAuth).GetAwaiter().GetResult() ?? "0000000000000000";
         AutoLogin = bool.TryParse(_preferences.GetAsync(PrefAutoLogin).GetAwaiter().GetResult(), out var autoLogin) && autoLogin;
@@ -47,7 +56,7 @@ public partial class ConnectorViewModel : ObservableObject
         var lastPresetName = _preferences.GetAsync(PrefPreset).GetAwaiter().GetResult();
         if (lastPresetName != null)
         {
-            _selectedPreset = DefaultPresets.FirstOrDefault(p => p.Name == lastPresetName);
+            _selectedPreset = Presets.FirstOrDefault(p => p.Name == lastPresetName);
             if (_selectedPreset != null) MarkCurrentPreset(_selectedPreset);
         }
 
@@ -66,24 +75,26 @@ public partial class ConnectorViewModel : ObservableObject
         IsConnected = _session.IsConnected;
         StatusText = IsConnected ? "已连接" : "未连接";
 
-        // 自动登录：有档案 + 未连接 + AutoLogin 开启
+        // 自动登录：有档案 + 未连接 + AutoLogin 开启 + 有密码。
+        // 密码不再持久化 ⇒ 冷启动时密码必为空，自动登录无从谈起——明确告知，而不是拿空密码去撞柜台。
         if (AutoLogin && !IsConnected && !string.IsNullOrWhiteSpace(Front) && !string.IsNullOrWhiteSpace(UserId))
-            _ = ConnectAsync();
+        {
+            if (string.IsNullOrEmpty(Password))
+                StatusText = "自动登录已停用：密码不再写入本地偏好（安全），请输入密码后点「连接」";
+            else
+                _ = ConnectAsync();
+        }
     }
 
     // ── 预设（固定三个 + 字典驱动 Instruments）──
 
-    /// <summary>
-    /// 固定预设字典：名字 → { 交易前置, 行情前置, 默认订阅品种列表 }。
-    /// 自有服务器（本地/远程同形）默认只上市 ax001（Aether 币价期货）；
-    /// SimNow = 真实柜台，订阅品种需手动填（主连代码）。
-    /// </summary>
-    public static IReadOnlyList<ConnectionPreset> DefaultPresets { get; } = new[]
-    {
-        new ConnectionPreset("本地仿真", "tcp://127.0.0.1:17801", "tcp://127.0.0.1:17802", new[] { "ax001" }),
-        new ConnectionPreset("自有服务器", "tcp://117.72.186.128:17801", "tcp://117.72.186.128:17802", new[] { "ax001" }),
-        new ConnectionPreset("SimNow", "tcp://180.168.146.187:10130", "tcp://180.168.146.187:10131", Array.Empty<string>()),
-    };
+    /// <summary>预设清单（界面绑定）：名字 → { 交易前置, 行情前置, 默认订阅品种 }。
+    /// <b>用户档案优先，无档/坏档回退内置</b>——见 <see cref="ConnectionPresets"/>；内置只作首次启动与兜底
+    /// （原来硬编码在代码里，换部署环境要改代码重发）。</summary>
+    public IReadOnlyList<ConnectionPreset> Presets { get; }
+
+    /// <summary>内置兜底清单（兼容旧引用点）。</summary>
+    public static IReadOnlyList<ConnectionPreset> DefaultPresets => ConnectionPresets.BuiltIn;
 
     [ObservableProperty] private ConnectionPreset? _selectedPreset;
 
@@ -235,7 +246,7 @@ public partial class ConnectorViewModel : ObservableObject
         await _preferences.SetAsync(PrefMdFront, MdFront.Trim());
         await _preferences.SetAsync(PrefBroker, Broker.Trim());
         await _preferences.SetAsync(PrefUser, UserId.Trim());
-        await _preferences.SetAsync(PrefPass, Password);
+        await _preferences.SetAsync(PrefPass, null);   // 密码绝不落盘（见 ctor 注释：恢复记住密码须走系统钥匙串）
         await _preferences.SetAsync(PrefAppId, AppId.Trim());
         await _preferences.SetAsync(PrefAuth, AuthCode.Trim());
         await _preferences.SetAsync(PrefAutoLogin, AutoLogin ? "true" : "false");

@@ -59,8 +59,14 @@ jobs:
           --password ${{ secrets.GITHUB_TOKEN }}
           --store-password-in-clear-text
 
-      # Avalonia（普通 SDK，linux 可 build）。无测试项目——桌面验收须实跑
-      # （M1 期货页 / 回测 / 钱包 tab 的完成度核实是 P3 项），CI 只钉 Release 构建。
+      # Avalonia（普通 SDK，linux 可 build）。
       - name: Build
         run: dotnet build aether-desktop.slnx -c Release
+        working-directory: aether-desktop
+
+      # 纯逻辑面（不起窗口、不初始化 Avalonia 平台）：偏好存储（同步契约/坏档重建/跨实例持久化/
+      # 密码键可彻底删除）、连接预设档案（用户档优先/坏档回退内置/清单非空）、显示格式（方向/开平/
+      # 委托状态字符 → 中文，以契约为准）。控件与真实登录/下单仍靠实跑验收。
+      - name: Test
+        run: dotnet test aether-desktop.slnx -c Release --no-build
         working-directory: aether-desktop

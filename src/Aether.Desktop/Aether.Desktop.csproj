@@ -10,6 +10,12 @@
     <RootNamespace>Aether.Desktop</RootNamespace>
   </PropertyGroup>
 
+  <!-- 测试可断言内部的显示格式化（DirText/OffsetText/OrderStatusText）——它们是 UI 文案口径，
+       漂移会让日志与界面各说各话；控件级验证仍靠实跑。 -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Aether.Desktop.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />

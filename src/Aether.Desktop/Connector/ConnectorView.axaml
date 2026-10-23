@@ -25,7 +25,7 @@
               Background="{DynamicResource CardBgBrush}">
         <StackPanel Spacing="8">
           <TextBlock Text="连接预设" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="SemiBold"/>
-          <ItemsControl ItemsSource="{Binding DefaultPresets}">
+          <ItemsControl ItemsSource="{Binding Presets}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <WrapPanel Orientation="Horizontal"/>

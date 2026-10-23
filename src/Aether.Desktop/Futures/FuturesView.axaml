@@ -86,7 +86,7 @@
               <TextBlock Grid.Column="0" Text="持仓·合约" FontSize="12" FontWeight="SemiBold"/>
               <TextBlock Grid.Column="1" Text="方向" FontSize="12" FontWeight="SemiBold"/>
               <TextBlock Grid.Column="2" Text="总仓" FontSize="12" FontWeight="SemiBold"/>
-              <TextBlock Grid.Column="3" Text="开仓均价" FontSize="12" FontWeight="SemiBold"/>
+              <TextBlock Grid.Column="3" Text="持仓成本" FontSize="12" FontWeight="SemiBold"/>
               <TextBlock Grid.Column="4" Text="现价" FontSize="12" FontWeight="SemiBold"/>
               <TextBlock Grid.Column="5" Text="浮动盈亏" FontSize="12" FontWeight="SemiBold"/>
               <TextBlock Grid.Column="6" Text="今/昨" FontSize="12" FontWeight="SemiBold"/>
@@ -101,7 +101,7 @@
                       <TextBlock Grid.Column="0" Text="{Binding Instrument}" FontSize="13" FontWeight="SemiBold"/>
                       <TextBlock Grid.Column="1" Text="{Binding Direction}" FontSize="13"/>
                       <TextBlock Grid.Column="2" Text="{Binding Total}" FontSize="13"/>
-                      <TextBlock Grid.Column="3" Text="{Binding AvgPrice, StringFormat=F2}" FontSize="13"/>
+                      <TextBlock Grid.Column="3" Text="{Binding PositionCost, StringFormat=F2}" FontSize="13"/>
                       <TextBlock Grid.Column="4" Text="{Binding CurrentPrice, StringFormat=F2}" FontSize="13"/>
                       <TextBlock Grid.Column="5" Text="{Binding Profit, StringFormat=F2}" FontSize="13"
                                  Foreground="{DynamicResource AccentBrush}"/>

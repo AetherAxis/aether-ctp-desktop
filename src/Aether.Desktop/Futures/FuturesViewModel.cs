@@ -28,6 +28,13 @@ public partial class FuturesViewModel : ObservableObject
     [ObservableProperty] private string _availableText = "—";
     [ObservableProperty] private string _accountIdText = "—";
 
+    /// <summary>账户/持仓轮询间隔。类注释一直宣称「连上启动轮询」，但代码里只有建连与手动刷新才查——
+    /// 这里补上真的轮询（3s，与 README 一致）。只查账户+持仓（委托表全量查询在空表时 30s 超时，
+    /// 留给手动刷新，见 <see cref="RefreshOrdersCommand"/>）。</summary>
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(3);
+    private readonly DispatcherTimer _pollTimer = new() { Interval = PollInterval };
+    private bool _pollBusy;
+
     public ObservableCollection<TickRow> Quotes { get; } = new();
     public ObservableCollection<PositionRow> Positions { get; } = new();
     public ObservableCollection<OrderRow> Orders { get; } = new();
@@ -46,7 +53,14 @@ public partial class FuturesViewModel : ObservableObject
 
         // 被动同步当前状态
         IsConnected = _session.IsConnected;
-        if (IsConnected) _ = RefreshAllAsync();
+        if (IsConnected)
+        {
+            _ = RefreshAllAsync();
+            _pollTimer.Start();
+        }
+
+        // 轮询拍（UI 线程 DispatcherTimer → 查询本身 await，不阻塞渲染）
+        _pollTimer.Tick += async (_, _) => await PollAsync();
     }
 
     private void OnConnectionState(CtpConnectionStatus s)
@@ -57,14 +71,30 @@ public partial class FuturesViewModel : ObservableObject
         {
             StatusText = "已连接";
             _ = RefreshAllAsync();
+            _pollTimer.Start();
         }
         else
         {
             StatusText = s == CtpConnectionStatus.Closed ? "闭市" : "未连接";
+            _pollTimer.Stop();
+            _pollBusy = false;
             Positions.Clear();
             Orders.Clear();
             BalanceText = AvailableText = AccountIdText = "—";
         }
+    }
+
+    /// <summary>轮询一拍：重入保护（上一拍还没回来就跳过，避免断线窗口里堆积）。</summary>
+    private async Task PollAsync()
+    {
+        if (!IsConnected || _pollBusy) return;
+        _pollBusy = true;
+        try
+        {
+            await RefreshAccountAsync();
+            await RefreshPositionsAsync();
+        }
+        finally { _pollBusy = false; }
     }
 
     // ── 刷新命令（手动） ──
@@ -128,9 +158,13 @@ public partial class FuturesViewModel : ObservableObject
                     Total = p.TotalPosition,
                     Today = p.TodayPosition,
                     Yesterday = p.YdPosition,
-                    AvgPrice = tick,
+                    // 持仓成本来自柜台（Σ 开仓价×手数×乘数）。旧代码拿最新价冒充「开仓均价」，
+                    // 行情还没到时是 0，浮亏也就只能硬填 0——那是**假数据**，比空着更糟。
+                    // 均价要除合约乘数（本契约不含合约信息），所以列名改成「持仓成本」按原值展示。
+                    PositionCost = p.PositionCost,
                     CurrentPrice = tick,
-                    Profit = 0,
+                    // 浮盈用柜台口径（含昨仓结算价基准），与「最新价 − 开仓价 × 手数」不同，别自己算。
+                    Profit = p.PositionProfit,
                 });
             }
         }
@@ -155,16 +189,13 @@ public partial class FuturesViewModel : ObservableObject
         row.Volume = t.Volume;
         row.Time = $"{t.UpdateTime}.{t.UpdateMillisec:000}";
 
-        // 持仓现价/浮动盈亏随 tick 更新
+        // 持仓现价随 tick 更新。**浮动盈亏不自己算**：柜台口径的 PositionProfit 含昨仓以结算价为基准，
+        // 而「价差 × 手数」得到的是价格单位不是金额（还缺合约乘数，契约里没有合约信息）。
+        // 所以盈亏只由轮询从柜台取（旧代码拿最新价当开仓价自己乘，结果是错的）。
         for (int i = 0; i < Positions.Count; i++)
         {
             if (Positions[i].Instrument.Equals(t.InstrumentId, StringComparison.OrdinalIgnoreCase))
-            {
-                var p = Positions[i];
-                var sign = p.Direction == "多" ? 1 : -1;
-                p.CurrentPrice = t.LastPrice;
-                p.Profit = Math.Round(sign * p.Total * (t.LastPrice - p.AvgPrice), 2);
-            }
+                Positions[i].CurrentPrice = t.LastPrice;
         }
     }
 
@@ -181,10 +212,31 @@ public partial class FuturesViewModel : ObservableObject
         CtpOffsetFlag.CloseToday => "平今", CtpOffsetFlag.CloseYesterday => "平昨",
         _ => o.ToString(),
     };
-    internal static string OrderStatusText(char raw) => raw switch
+    /// <summary>
+    /// 委托状态 → 中文。**状态码解析交给契约 <see cref="CtpOrderStatus"/>**（<c>raw.ToStatus()</c>），
+    /// 本方法只负责文案——原来这里自带一份 char switch，漏了 <c>'a'=未知</c>（显示成「在途」，等于把
+    /// 「柜台没给状态」说成「在路上」）和 <c>'b'/'c'</c>（条件单未触发/已触发）。
+    /// </summary>
+    internal static string OrderStatusText(char raw)
     {
-        '0' => "全成", '1' => "部成在队", '2' => "部成作废", '3' => "未成交在队",
-        '4' => "已作废", '5' => "已撤销", 'a' => "在途", _ => $"状态{raw}",
+        var status = ((byte)raw).ToStatus();
+        // 契约不认识的码归 Unknown；只有真的是 'a' 才显示「未知」，其它码保留原始码好排查
+        if (status == CtpOrderStatus.Unknown && raw != 'a') return $"状态{raw}";
+        return OrderStatusText(status);
+    }
+
+    internal static string OrderStatusText(CtpOrderStatus status) => status switch
+    {
+        CtpOrderStatus.AllTraded => "全成",
+        CtpOrderStatus.PartTradedQueueing => "部成在队",
+        CtpOrderStatus.PartTradedNotQueueing => "部成作废",
+        CtpOrderStatus.NoTradeQueueing => "未成交在队",
+        CtpOrderStatus.NoTradeNotQueueing => "已作废",
+        CtpOrderStatus.Canceled => "已撤销",
+        CtpOrderStatus.Unknown => "未知",
+        CtpOrderStatus.NotTouched => "条件单未触发",
+        CtpOrderStatus.Touched => "条件单已触发",
+        _ => $"状态{(byte)status}",
     };
 }
 
@@ -210,7 +262,8 @@ public partial class PositionRow : ObservableObject
     public int Total { get; init; }
     public int Today { get; init; }
     public int Yesterday { get; init; }
-    public double AvgPrice { get; init; }
+    /// <summary>持仓成本（元，柜台 <c>PositionCost</c>）。均价 = 本值 ÷ (手数 × 合约乘数)——乘数不在契约里，故不折算。</summary>
+    public double PositionCost { get; init; }
     [ObservableProperty] private double _currentPrice;
     [ObservableProperty] private double _profit;
 }
