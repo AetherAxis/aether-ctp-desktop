@@ -17,8 +17,8 @@ namespace Aether.Desktop.MarketWatch;
 /// <para>
 /// 与 <see cref="Connector.ConnectorViewModel"/> 的分工：连接器管交易登录（那才有账户/持仓/委托）；
 /// 本页只消费行情腿，且**不依赖交易登录**——冷启动即自动订阅，省掉「先登录才能看行情」这一步。
-/// 凭据口径：本前置/⑤ 的 MD 腿不校验（零凭据冷启动）；真实前置（SimNow 等）校验 user/密码——
-/// 真前置会话经 MD 密码框现填（不落盘）。
+/// 凭据口径：本前置/⑤ 与 SimNow 的 MD 腿都不校验（SimNow 2026-10-25 实证空密码可用）；
+/// 其它真实前置经 MD 密码框现填（会话内存，不落盘）。
 /// </para>
 /// <para>
 /// 共用同一条 MD 连接（<see cref="ICtpSession"/> 单例）：若有人在连接器里用别的账号登录并订阅，
@@ -105,8 +105,9 @@ public partial class MarketWatchViewModel : ObservableObject
     [ObservableProperty] private string _broker = "9999";
     [ObservableProperty] private string _user = "watching";
     /// <summary>
-    /// MD 密码（可选）：本前置与 ⑤ 不校验（留空即可）；真实前置（SimNow 等）校验——console 真前置会话
-    /// 一直用登录凭据连 MD（抓包实录）。**会话内存而已，绝不落盘**（与连接器「密码不落盘」同政策）。
+    /// MD 密码（可选）：本前置与 SimNow 的 MD 腿都不校验（SimNow 2026-10-25 实证：watching+空密码
+    /// 登录/订阅/87 合约 tick 流全通）——**SimNow 留空即可**。其它真实前置（期货公司柜台）通常校验，
+    /// 框留着给那类前置。**会话内存而已，绝不落盘**（与连接器「密码不落盘」同政策）。
     /// </summary>
     [ObservableProperty] private string _mdPassword = "";
     /// <summary>订阅品种（逗号分隔）。点「订阅」时整表替换看板行。</summary>
@@ -241,7 +242,7 @@ public partial class MarketWatchViewModel : ObservableObject
                 MdFrontAddress = MdFront.Trim(),
                 BrokerId = string.IsNullOrWhiteSpace(Broker) ? "9999" : Broker.Trim(),
                 UserId = string.IsNullOrWhiteSpace(User) ? "watching" : User.Trim(),
-                Password = MdPassword,   // 本前置不校验（留空即可）；真实前置需要——不落盘，每次会话现填
+                Password = MdPassword,   // 本前置与 SimNow MD 均不校验（SimNow 实证可空）；其它真实前置需要——不落盘，现填
             }, symbols);
 
             // 会话缓存里可能已有这些合约的 tick（重订阅/切页后立刻有数，不用等下一拍）

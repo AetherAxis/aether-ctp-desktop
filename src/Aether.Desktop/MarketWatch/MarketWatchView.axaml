@@ -39,7 +39,7 @@
                 Command="{Binding UseLocalCommand}" ToolTip.Tip="本地开发态前置（交易所仍指远程）"/>
         <Button Grid.Column="4" Classes="chip" Content="SimNow" Margin="4,0,0,0"
                 Command="{Binding UseRealCommand}"
-                ToolTip.Tip="SimNow 真实行情前置——订阅面自动切换为爬取的期货主力合约（用户/密码填 SimNow 账号）"/>
+                ToolTip.Tip="SimNow 真实行情前置——订阅面自动切换为爬取的期货主力合约（MD 实测免凭据，用户/密码随意）"/>
 
         <TextBlock Grid.Column="5" Text="经纪商" FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -52,8 +52,8 @@
         <TextBlock Grid.Column="9" Text="MD 密码" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
         <TextBox Grid.Column="10" Text="{Binding MdPassword}" FontSize="12" Height="28" Margin="6,0,0,0"
-                 PasswordChar="•" PlaceholderText="本前置可空"
-                 ToolTip.Tip="真实前置（SimNow 等）MD 登录用；本前置不校验可留空。会话内存而已——绝不落盘"/>
+                 PasswordChar="•" PlaceholderText="SimNow 可空"
+                 ToolTip.Tip="本前置与 SimNow 的 MD 腿都不校验（SimNow 实测空密码可用）；其它真实前置需要。会话内存——绝不落盘"/>
 
         <TextBlock Grid.Column="11" Text="品种" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
