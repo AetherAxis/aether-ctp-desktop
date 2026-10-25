@@ -1,0 +1,145 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Aether.Desktop.MarketWatch.MarketWatchView">
+
+  <UserControl.Styles>
+    <!-- 涨=红、跌=绿（A 股/国内期货惯例；与主题强调色无关，是行情语义色） -->
+    <Style Selector="TextBlock.up">
+      <Setter Property="Foreground" Value="#E5484D" />
+    </Style>
+    <Style Selector="TextBlock.down">
+      <Setter Property="Foreground" Value="#30A46C" />
+    </Style>
+    <Style Selector="Button.chip">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.chip:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentTintBgBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Background="{DynamicResource ContentBgBrush}">
+
+    <!-- ═══ 订阅栏：MD 前置 / 品种 / 订阅（不需要交易账号） ═══ -->
+    <Border Grid.Row="0" Padding="12,8" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="Auto,260,Auto,Auto,Auto,80,Auto,110,Auto,170,Auto,Auto,Auto,*">
+        <TextBlock Grid.Column="0" Text="行情前置" FontSize="12" VerticalAlignment="Center"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+        <TextBox Grid.Column="1" Text="{Binding MdFront}" FontSize="12" Height="28"
+                 Watermark="tcp://117.72.186.128:17802" Margin="8,0,0,0"/>
+        <Button Grid.Column="2" Classes="chip" Content="远程" Margin="6,0,0,0"
+                Command="{Binding UseRemoteCommand}" ToolTip.Tip="服务器上已部署的交易所+前置"/>
+        <Button Grid.Column="3" Classes="chip" Content="本地" Margin="4,0,0,0"
+                Command="{Binding UseLocalCommand}" ToolTip.Tip="本地开发态前置（交易所仍指远程）"/>
+
+        <TextBlock Grid.Column="4" Text="经纪商" FontSize="12" VerticalAlignment="Center" Margin="16,0,0,0"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+        <TextBox Grid.Column="5" Text="{Binding Broker}" FontSize="12" Height="28" Margin="6,0,0,0"/>
+
+        <TextBlock Grid.Column="6" Text="用户" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+        <TextBox Grid.Column="7" Text="{Binding User}" FontSize="12" Height="28" Margin="6,0,0,0"/>
+
+        <TextBlock Grid.Column="8" Text="品种" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+        <TextBox Grid.Column="9" Text="{Binding SymbolInput}" FontSize="12" Height="28" Margin="6,0,0,0"
+                 Watermark="ax001, IF2612"/>
+
+        <Button Grid.Column="10" Content="订阅" Margin="10,0,0,0" Padding="14,4" FontSize="12"
+                Command="{Binding SubscribeCommand}" ToolTip.Tip="连行情前置并订阅（MD 腿不需要密码）"/>
+        <Button Grid.Column="11" Content="断开" Margin="6,0,0,0" Padding="12,4" FontSize="12"
+                Command="{Binding DisconnectCommand}"/>
+        <TextBlock Grid.Column="12" Text="{Binding StatusText}" Margin="12,0,0,0" FontSize="11"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+      </Grid>
+    </Border>
+
+    <!-- ═══ 口径条：连接状态 + tick 速率 + 最近 tick（每秒刷新） ═══ -->
+    <Border Grid.Row="1" Padding="12,5" Background="{DynamicResource CardBgBrush}"
+            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="18">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Panel Width="9" Height="9" VerticalAlignment="Center">
+            <Ellipse Width="9" Height="9" Fill="#4CAF50" IsVisible="{Binding IsSubscribed}"/>
+            <Ellipse Width="9" Height="9" Fill="#9E9E9E" IsVisible="{Binding !IsSubscribed}"/>
+          </Panel>
+          <TextBlock Text="{Binding FeedText}" FontSize="11" VerticalAlignment="Center"
+                     Foreground="{DynamicResource TextSecondaryBrush}"/>
+        </StackPanel>
+        <TextBlock FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}">
+          <Run Text="累计 tick "/><Run Text="{Binding TickCount}"/>
+        </TextBlock>
+      </StackPanel>
+    </Border>
+
+    <!-- ═══ 表头 ═══ -->
+    <Border Grid.Row="2" Padding="12,5,12,5" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="110,100,90,90,90,70,90,70,100,90,60,60,*">
+        <TextBlock Grid.Column="0" Text="合约" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="1" Text="最新" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="2" Text="涨跌" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="3" Text="涨跌幅" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="4" Text="买一" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="5" Text="买量" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="6" Text="卖一" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="7" Text="卖量" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="8" Text="成交量" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="9" Text="持仓量" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="10" Text="变动" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="11" Text="基准" FontSize="11" FontWeight="SemiBold"/>
+        <TextBlock Grid.Column="12" Text="更新时间" FontSize="11" FontWeight="SemiBold"/>
+      </Grid>
+    </Border>
+
+    <!-- ═══ 行情行 ═══ -->
+    <ScrollViewer Grid.Row="3">
+      <ItemsControl ItemsSource="{Binding Quotes}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Padding="12,5" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
+              <Grid ColumnDefinitions="110,100,90,90,90,70,90,70,100,90,60,60,*">
+                <TextBlock Grid.Column="0" Text="{Binding Instrument}" FontSize="13" FontWeight="SemiBold"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                  <TextBlock Text="{Binding LastText}" FontSize="14" FontWeight="SemiBold"
+                             Classes.up="{Binding IsUp}" Classes.down="{Binding IsDown}"/>
+                  <TextBlock Text="{Binding Arrow}" FontSize="11" VerticalAlignment="Center"
+                             Classes.up="{Binding IsUp}" Classes.down="{Binding IsDown}"/>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding ChangeText}" FontSize="12"
+                           Classes.up="{Binding IsUp}" Classes.down="{Binding IsDown}"/>
+                <TextBlock Grid.Column="3" Text="{Binding PercentText}" FontSize="12"
+                           Classes.up="{Binding IsUp}" Classes.down="{Binding IsDown}"/>
+                <TextBlock Grid.Column="4" Text="{Binding BidText}" FontSize="12" Foreground="#30A46C"/>
+                <TextBlock Grid.Column="5" Text="{Binding BidVolumeText}" FontSize="12"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <TextBlock Grid.Column="6" Text="{Binding AskText}" FontSize="12" Foreground="#E5484D"/>
+                <TextBlock Grid.Column="7" Text="{Binding AskVolumeText}" FontSize="12"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <TextBlock Grid.Column="8" Text="{Binding VolumeText}" FontSize="12"/>
+                <TextBlock Grid.Column="9" Text="{Binding OpenInterestText}" FontSize="12"/>
+                <TextBlock Grid.Column="10" Text="{Binding Moves}" FontSize="12"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <TextBlock Grid.Column="11" Text="{Binding Basis}" FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <TextBlock Grid.Column="12" Text="{Binding TimeText}" FontSize="11"
+                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <!-- 底部口径说明（表头下的空行是常态：行情推送的是快照，价格不动时除时间外都不变） -->
+    <TextBlock Grid.Row="3" Text="涨跌基准：昨结 → 昨收 → 本会话首笔（依次回退）；「变动」= 最新价实际变化次数"
+               FontSize="10" Margin="12,0,12,6" VerticalAlignment="Bottom"
+               Foreground="{DynamicResource TextSecondaryBrush}" Opacity="0.7"/>
+  </Grid>
+</UserControl>

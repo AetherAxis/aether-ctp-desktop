@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Aether.Desktop.MarketWatch;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -179,9 +180,12 @@ public partial class FuturesViewModel : ObservableObject
             _rowsByInstrument[t.InstrumentId] = row;
             Quotes.Add(row);
         }
-        var prevLast = row.Last;
+        // 涨跌口径与行情页一致：昨结 → 昨收 → 本会话首笔（此前是「相对上一笔」，同一价位反复推送时会来回跳 0，
+        // 既不是今日涨跌也不是真实波动）。基准逐行锁定，见 MarketMath。
+        var (reference, _) = MarketMath.PickBasis(t.PreSettlement, t.PreClose, row.Reference > 0 ? row.Reference : t.LastPrice);
+        if (row.Reference <= 0 || t.PreSettlement > 0) row.Reference = reference;
         row.Last = t.LastPrice;
-        row.Change = prevLast == 0 ? 0 : Math.Round(t.LastPrice - prevLast, 2);
+        row.Change = MarketMath.Change(t.LastPrice, row.Reference);
         row.Bid = t.BidPrice;
         row.BidVolume = t.BidVolume;
         row.Ask = t.AskPrice;
@@ -244,6 +248,8 @@ public partial class FuturesViewModel : ObservableObject
 public partial class TickRow : ObservableObject
 {
     public string Instrument { get; init; } = "";
+    /// <summary>涨跌基准价（昨结/昨收/本会话首笔，见 <see cref="MarketWatch.MarketMath"/>）；0 = 尚未确定。</summary>
+    public double Reference { get; set; }
     [ObservableProperty] private double _last;
     [ObservableProperty] private double _change;
     [ObservableProperty] private double _bid;
