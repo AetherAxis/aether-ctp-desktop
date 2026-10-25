@@ -31,8 +31,18 @@ public partial class MarketWatchViewModel : ObservableObject
     private const string PrefBroker = "market.broker";
     private const string PrefUser = "market.user";
 
-    /// <summary>远程前置（服务器上已部署的交易所 + 前置）。默认值——用户要连别的环境改地址即可。</summary>
+    /// <summary>
+    /// 远程前置（服务器上部署的交易所 + 前置）。默认<b>本地</b>前置——见 <see cref="LocalMdFront"/> 的注释。
+    /// </summary>
     public const string RemoteMdFront = "tcp://117.72.186.128:17802";
+    /// <summary>
+    /// 本地前置（本机 17802，转连远程交易所 117.72.186.128:17800）——**默认值**。
+    /// <para>
+    /// 2026-10-25 实测：市场活跃时（本地前置 30 秒推 190 帧）远程 17802 只回订阅快照的 2 帧、不推流。
+    /// 本机链路是「两个 bot → 本地前置 → 远程交易所」（见根 CLAUDE.md），tick 由本地前置下发，
+    /// 所以看行情要连本地；远程地址留着给「服务器前置重新部署后」一键切（远程 chip）。
+    /// </para>
+    /// </summary>
     public const string LocalMdFront = "tcp://127.0.0.1:17802";
     public const string DefaultSymbols = "ax001";
 
@@ -55,7 +65,7 @@ public partial class MarketWatchViewModel : ObservableObject
         _preferences = preferences;
 
         // 启动同步恢复上次的订阅档案（与连接器同款：GetAsync 同步完成）
-        MdFront = _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult() ?? RemoteMdFront;
+        MdFront = _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult() ?? LocalMdFront;
         Broker = _preferences.GetAsync(PrefBroker).GetAwaiter().GetResult() ?? "9999";
         User = _preferences.GetAsync(PrefUser).GetAwaiter().GetResult() ?? "watching";
         SymbolInput = _preferences.GetAsync(PrefSymbols).GetAwaiter().GetResult() ?? DefaultSymbols;
@@ -74,7 +84,7 @@ public partial class MarketWatchViewModel : ObservableObject
 
     // ── 订阅档案（界面绑定） ──
 
-    [ObservableProperty] private string _mdFront = RemoteMdFront;
+    [ObservableProperty] private string _mdFront = LocalMdFront;
     [ObservableProperty] private string _broker = "9999";
     [ObservableProperty] private string _user = "watching";
     /// <summary>订阅品种（逗号分隔）。点「订阅」时整表替换看板行。</summary>
