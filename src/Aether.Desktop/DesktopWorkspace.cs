@@ -6,16 +6,16 @@ namespace Aether.Desktop;
 public static class PanelKeys
 {
     public const string Market = "market";
-    public const string Connector = "connector";
     public const string Trading = "trading";
-    public const string Strategy = "strategy";
     public const string Wallet = "wallet";
 }
 
-/// <summary>App 的默认工作台：行情 / 连接器 / 交易 / 策略 / 钱包 五 tab。
-/// 行情 = 只连行情腿的看板（冷启动即订阅，不需要交易账号——「bot 在跑」的观察面）；
-/// 连接器 = CTP 登录 + 连接状态 + 预设（profile）管理——独立页面，交易/策略/钱包被动消费已连接 session；
-/// 交易 = 行情 + 持仓 + 委托（M1）；策略 = 回测 + 实盘（M3）；钱包 = AQ 充提（M2）。</summary>
+/// <summary>
+/// App 的默认工作台：行情 / 交易 / 钱包 三 tab（2026-10-25 布局收敛，原五 tab）。
+/// 行情 = 只连行情腿的看板（MD 唯一持有者——冷启动即订阅、真实前置自动爬主力，不需要交易账号）；
+/// 交易 = 登录栏（原「连接器」tab 收编为顶栏）+ 账户/持仓/委托（行情板已移除——看行情归行情页）；
+/// 钱包 = AQ 充提。原「策略」tab 为假按钮桩，撤掉——接 ⑥ 运行时时再以真功能回归。
+/// </summary>
 public static class DesktopWorkspace
 {
     public static WorkspaceDefinition Definition { get; } = new(
@@ -24,10 +24,8 @@ public static class DesktopWorkspace
         Panels: new List<PanelDescriptor>
         {
             new(PanelKeys.Market, PanelKeys.Market, "行情", "futures"),
-            new(PanelKeys.Connector, PanelKeys.Connector, "连接器", "connector"),
             new(PanelKeys.Trading, PanelKeys.Trading, "交易", "activity"),
-            new(PanelKeys.Strategy, PanelKeys.Strategy, "策略", "backtest"),
             new(PanelKeys.Wallet, PanelKeys.Wallet, "钱包", "wallet"),
         },
-        Layout: new LayoutTabbed(new[] { PanelKeys.Market, PanelKeys.Connector, PanelKeys.Trading, PanelKeys.Strategy, PanelKeys.Wallet }));
+        Layout: new LayoutTabbed(new[] { PanelKeys.Market, PanelKeys.Trading, PanelKeys.Wallet }));
 }

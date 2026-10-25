@@ -1,7 +1,7 @@
 # Aether.Desktop
 
-轻量桌面 App——⑩ `aether-workbench` 布局引擎的第一个消费者。**五个 tab：行情 / 连接器 / 交易 / 策略 / 钱包**
-（见 `DesktopWorkspace.cs` 与 `App.axaml`）；
+轻量桌面 App——⑩ `aether-workbench` 布局引擎的第一个消费者。**三个 tab：行情 / 交易 / 钱包**
+（2026-10-25 布局收敛，原五 tab——见 DESIGN 3.8）；
 依赖闭包 = ⑩（引擎）+ ⑦（ICtpSession 官方链路；③② 传递）+ ①（链查询）+ ④（SimRpc 提币）——
 与 console 同款组件，桌面端本就是这些组件的原始宿主。
 
@@ -15,12 +15,13 @@
   仿真默认（ax001）时，订阅面自动替换为**客户端直爬的期货主力合约目录**（东方财富 mk0830 板块，
   一品种一条，约 87 个；`MainFuturesCatalog`——移植自原 Web 服务端的爬虫，不再经服务端/证券库同步）；
   「主力合约」按钮任何时候可手动现爬现订（主力按月换约，爬取结果不落档）。
-- **M1 连接器 + 交易**：连接器 tab 管登录/预设/订阅（ICtpSession 单例，交易与钱包都在它之上）；
-  交易 tab = 行情板 + 账户摘要 + 持仓/委托表 + 限价/市价下单。**「bot 在跑」的证据面**——持仓在动、
-  MM 挂单躺在委托页、权益在变、tick 实时流；账户/持仓每 3s 自动轮询（委托表手动刷新——空表查询
-  有 30s 超时的已知边界）。持仓的「浮动盈亏」取柜台口径 `PositionProfit`，不本地用价差估。
+- **M1 交易页**：**登录栏（原「连接器」tab 收编为顶栏——预设 chips + 前置/用户号/密码 + 高级字段）**
+  + 账户摘要 + 持仓 + 委托表。**「bot 在跑」的证据面**——持仓在动、MM 挂单躺在委托页、权益在变；
+  账户/持仓每 3s 自动轮询（委托表手动刷新——空表查询有 30s 超时的已知边界）。持仓的「浮动盈亏」
+  取柜台口径 `PositionProfit`，不本地用价差估。**下单入口未做**（界面与 VM 均无报单命令）。
+  交易页的行情板已随布局收敛移除——看行情归行情页（MD 订阅唯一持有者），tick 只用来更新持仓现价。
 - M2 钱包页（已可用，随账本/交易所成型）：① Aether.Ledger 查链上余额 + ④ SimRpc `withdraw` 提币。
-- M3 策略页（**桩**）：`RunBacktest`/`StartLive` 目前只改状态文本，尚未接 ⑥ `IBacktestRuntime`/`ILiveTradingRuntime`。
+- 策略页：**假按钮桩已撤（2026-10-25）**——接 ⑥ `IBacktestRuntime`/`ILiveTradingRuntime` 时以真功能回归，不做只改状态文本的空壳。
 
 ## 用法
 
@@ -38,31 +39,33 @@ dotnet run --project aether-desktop/src/Aether.Desktop
 **SimNow 的 MD 腿实测不校验凭据**（2026-10-25：watching+空密码登录、87/87 合约 tick 流全通）——
 用户/MD 密码随意；「MD 密码」框留给其它需要凭据的真实前置（期货公司柜台），会话内存不落盘。
 
-**要交易/看账户**：连接器 tab 填交易前置（与连 SimNow 同形）：本地实验室 `tcp://127.0.0.1:17901/17902`、
-标准端口 `tcp://127.0.0.1:17801/17802`、服务器 `tcp://<服务器IP>:17801/17802`——账户/密码即交易所账户
-（首登开户）。想看 bot 自己的账户就用 bot 的账户登录（如 `botmm/botmm`）。
+**要交易/看账户**：交易页顶栏就是登录栏——预设 chips（本地实验室/标准端口/服务器）填好前置，
+账户/密码即交易所账户（首登开户）。想看 bot 自己的账户就用 bot 的账户登录（如 `botmm/botmm`）。
+高级字段（经纪商/行情前置/AppId/授权码）预设会带，手动换柜台时才碰。
 
 - 登录档案（前置地址/经纪商/用户号/AppID/授权码）持久化到 `~/.aether/aether-desktop/preferences.json`；**密码不落盘**（冷启动需手输，自动登录因此需手输一次）——要恢复「记住密码」须接系统钥匙串
-- **行情页与连接器共用同一条 MD 连接**：在连接器里用别的账号登录并订阅会按那个账号重建 MD，
-  行情页会转「静默」——点行情页「订阅」重连即可（不做后台互抢，见 DESIGN 3.6）
+- **MD 订阅的唯一持有者是行情页**——交易页不再碰行情连接（原连接器 tab 的 MD 订阅逻辑已删，
+  消除了两页在同一 ⑦ 单例连接上互抢重建的隐患）
 - 布局/主题/窗口尺寸经 ⑩ 引擎持久化（同一文件）
-- **委托查询是手动刷新**（「刷新委托」按钮）——空表 SDK 不派发 17B 应答的已知边界（30s 超时 + 管线停摆），自动轮询会打断 tick 流；账户/持仓每 3s 自动轮询（空表正常回派）
+- **委托查询是手动刷新**（「刷新」按钮）——空表 SDK 不派发 17B 应答的已知边界（30s 超时 + 管线停摆），自动轮询会打断 tick 流；账户/持仓每 3s 自动轮询（空表正常回派）
 
 ## 组成
 
 | 文件 | 职责 |
 |---|---|
-| `App.axaml(.cs)` | 组合根：⑩ AddWorkbench（五 tab 布局）+ ⑦ AddCtpInfrastructure + 贡献者注册 + WorkbenchServices.Attach |
-| `DesktopWorkspace.cs` | 工作台定义（行情/连接器/交易/策略/钱包五 tab）+ App 自己的 PanelKeys |
-| `AppViewContributor.cs` | IViewRegistryContributor——五个 panel 的视图/VM 工厂注册进 ⑩ 引擎 |
+| `App.axaml(.cs)` | 组合根：⑩ AddWorkbench（三 tab 布局）+ ⑦ AddCtpInfrastructure + 贡献者注册 + WorkbenchServices.Attach |
+| `DesktopWorkspace.cs` | 工作台定义（行情/交易/钱包三 tab）+ App 自己的 PanelKeys |
+| `AppViewContributor.cs` | IViewRegistryContributor——三个 panel 的视图/VM 工厂注册进 ⑩ 引擎 |
 | `JsonPreferencesStore.cs` | IPreferencesStore 的 JSON 文件实现（GetAsync 同步完成——引擎启动期同步恢复依赖此） |
-| `MarketWatch/MarketWatchViewModel.cs` | 行情页 VM：MD 订阅 / 真实前置自动爬主力合约 / 看板行原位更新 / 每秒速率与静默检测；`QuoteRow.Apply` 吃 tick |
+| `MarketWatch/MarketWatchViewModel.cs` | 行情页 VM：MD 订阅（免登录）/ 真实前置自动爬主力合约 / 看板行原位更新 / 每秒速率与静默检测；`QuoteRow.Apply` 吃 tick |
 | `MarketWatch/MainFuturesCatalog.cs` | 期货主力合约目录——客户端直爬东方财富 mk0830（Web 服务端 `SecuritySyncService` 的移植；代码规整 + 月均过滤 + sc→交易所），`NormalizeCode` 钉单测 |
 | `MarketWatch/MarketMath.cs` | 涨跌口径纯计算（昨结→昨收→首笔）+ 显示格式——被单测钉住 |
 | `MarketWatch/MarketWatchView.axaml` | 行情看板视图：订阅栏（远程/本地/SimNow chips + MD 密码 + 主力合约按钮）+ 口径条 + 十四列表格 |
-| `Futures/FuturesViewModel.cs` | 期货页 VM：登录/订阅/行情板/账户/持仓/委托；3s 轮询；SDK 回调 UI 线程编组 |
-| `Futures/FuturesView.axaml` | 期货页视图：登录栏 + 行情板 + 账户摘要 + 持仓/委托表 |
-| `Strategy/`、`Wallet/` | 策略页（桩，待接 ⑥ 运行时）、钱包页（链查询 + 提币） |
+| `Connector/ConnectorViewModel.cs` | 登录控制器（寄居交易页顶栏）：LoginAsync/Logout + 预设 + 登录档案；**不碰 MD**（行情页唯一持有） |
+| `Connector/ConnectionPresets.cs` | 连接预设（用户档优先/坏档回退内置） |
+| `Futures/FuturesViewModel.cs` | 交易页 VM：挂 `Connector`（登录栏绑定源）+ 账户/持仓/委托轮询与查询；tick 只更新持仓现价 |
+| `Futures/FuturesView.axaml` | 交易页视图：登录主行 + 高级字段行 + 账户摘要 + 持仓 + 委托（无行情板——看行情归行情页） |
+| `Wallet/` | 钱包页（链查询 + 提币） |
 
 ## 来历
 

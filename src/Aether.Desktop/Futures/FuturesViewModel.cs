@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
-using Aether.Desktop.MarketWatch;
+using Aether.Desktop.Connector;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,14 +12,19 @@ using Ctp.Net;
 namespace Aether.Desktop.Futures;
 
 /// <summary>
-/// 期货页 ViewModel——行情板 + 账户/持仓/委托查询。
-/// 连接管理全在 <see cref="Connector.ConnectorViewModel"/>（独立 tab）；本 VM 被动消费已连接的 <see cref="ICtpSession"/>：
-/// 监听 ConnectionStateChanged → 连上启动轮询、断开清数据；TickReceived → 行情板 + 持仓现价/浮动盈亏。
+/// 交易页 ViewModel——登录栏（<see cref="Connector"/>）+ 账户/持仓/委托查询。
+/// 纯被动消费已连接的 <see cref="ICtpSession"/>：监听 ConnectionStateChanged → 连上启动轮询、断开清数据；
+/// TickReceived → 只更新持仓现价（看行情归行情页——2026-10-25 布局收敛前去掉了本页自带的行情板，
+/// 它与行情页完全重复；tick 仍进来，只是不再铺一块板）。
 /// </summary>
 public partial class FuturesViewModel : ObservableObject
 {
     private readonly ICtpSession _session;
-    private readonly Dictionary<string, TickRow> _rowsByInstrument = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>最近成交价缓存（tick → 持仓「现价」列 + 持仓刷新时兜底）。</summary>
+    private readonly Dictionary<string, double> _lastPrice = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>登录控制器（寄居本页顶栏——原独立「连接器」tab，2026-10-25 布局收敛）。</summary>
+    public ConnectorViewModel Connector { get; }
 
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private string _statusText = "未连接";
@@ -36,13 +41,13 @@ public partial class FuturesViewModel : ObservableObject
     private readonly DispatcherTimer _pollTimer = new() { Interval = PollInterval };
     private bool _pollBusy;
 
-    public ObservableCollection<TickRow> Quotes { get; } = new();
     public ObservableCollection<PositionRow> Positions { get; } = new();
     public ObservableCollection<OrderRow> Orders { get; } = new();
 
-    public FuturesViewModel(ICtpSession session)
+    public FuturesViewModel(ICtpSession session, ConnectorViewModel connector)
     {
         _session = session;
+        Connector = connector;
 
         // SDK 回调在后台线程 → 统一 marshal 到 UI 线程
         _session.ConnectionStateChanged += (_, s) => Dispatcher.UIThread.Post(() => OnConnectionState(s));
@@ -151,7 +156,7 @@ public partial class FuturesViewModel : ObservableObject
             Positions.Clear();
             foreach (var p in positions.Where(p => p.TotalPosition != 0))
             {
-                var tick = _rowsByInstrument.TryGetValue(p.InstrumentId, out var tr) ? tr.Last : 0;
+                var tick = _lastPrice.TryGetValue(p.InstrumentId, out var last) ? last : 0;
                 Positions.Add(new PositionRow
                 {
                     Instrument = p.InstrumentId,
@@ -174,28 +179,9 @@ public partial class FuturesViewModel : ObservableObject
 
     private void OnTick(CtpTick t)
     {
-        if (!_rowsByInstrument.TryGetValue(t.InstrumentId, out var row))
-        {
-            row = new TickRow { Instrument = t.InstrumentId };
-            _rowsByInstrument[t.InstrumentId] = row;
-            Quotes.Add(row);
-        }
-        // 涨跌口径与行情页一致：昨结 → 昨收 → 本会话首笔（此前是「相对上一笔」，同一价位反复推送时会来回跳 0，
-        // 既不是今日涨跌也不是真实波动）。基准逐行锁定，见 MarketMath。
-        var (reference, _) = MarketMath.PickBasis(t.PreSettlement, t.PreClose, row.Reference > 0 ? row.Reference : t.LastPrice);
-        if (row.Reference <= 0 || t.PreSettlement > 0) row.Reference = reference;
-        row.Last = t.LastPrice;
-        row.Change = MarketMath.Change(t.LastPrice, row.Reference);
-        row.Bid = t.BidPrice;
-        row.BidVolume = t.BidVolume;
-        row.Ask = t.AskPrice;
-        row.AskVolume = t.AskVolume;
-        row.Volume = t.Volume;
-        row.Time = $"{t.UpdateTime}.{t.UpdateMillisec:000}";
-
-        // 持仓现价随 tick 更新。**浮动盈亏不自己算**：柜台口径的 PositionProfit 含昨仓以结算价为基准，
-        // 而「价差 × 手数」得到的是价格单位不是金额（还缺合约乘数，契约里没有合约信息）。
-        // 所以盈亏只由轮询从柜台取（旧代码拿最新价当开仓价自己乘，结果是错的）。
+        // 行情板已随布局收敛移除（看行情归行情页）；tick 在交易页只剩一个消费点：持仓「现价」列。
+        // 浮盈仍然只由 3s 轮询从柜台取（PositionProfit 含昨仓结算价基准）——不用价差自己算。
+        _lastPrice[t.InstrumentId] = t.LastPrice;
         for (int i = 0; i < Positions.Count; i++)
         {
             if (Positions[i].Instrument.Equals(t.InstrumentId, StringComparison.OrdinalIgnoreCase))
@@ -242,22 +228,6 @@ public partial class FuturesViewModel : ObservableObject
         CtpOrderStatus.Touched => "条件单已触发",
         _ => $"状态{(byte)status}",
     };
-}
-
-/// <summary>行情板行（按 instrument 原位更新——UI 线程）。</summary>
-public partial class TickRow : ObservableObject
-{
-    public string Instrument { get; init; } = "";
-    /// <summary>涨跌基准价（昨结/昨收/本会话首笔，见 <see cref="MarketWatch.MarketMath"/>）；0 = 尚未确定。</summary>
-    public double Reference { get; set; }
-    [ObservableProperty] private double _last;
-    [ObservableProperty] private double _change;
-    [ObservableProperty] private double _bid;
-    [ObservableProperty] private int _bidVolume;
-    [ObservableProperty] private double _ask;
-    [ObservableProperty] private int _askVolume;
-    [ObservableProperty] private long _volume;
-    [ObservableProperty] private string _time = "";
 }
 
 /// <summary>持仓行。</summary>

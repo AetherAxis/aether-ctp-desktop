@@ -10,8 +10,14 @@ using Ctp.Net;
 namespace Aether.Desktop.Connector;
 
 /// <summary>
-/// 连接器 tab —— CTP 登录/登出/预设管理的独立页面。
-/// 与交易/策略/钱包 tab 隔离：后者被动消费 <see cref="ICtpSession"/>（单例），登录/订阅/重连全在本页完成。
+/// CTP 登录控制器——交易登录/登出/预设管理，**寄居交易页顶栏**（2026-10-25 布局收敛前是独立 tab：
+/// 登录是手段不是目的地，独立成页后登录完就剩一块死空间）。
+/// <para>
+/// 职责边界：<b>本 VM 只管交易腿</b>（LoginAsync/Logout + 登录档案 + 预设）。**MD 订阅的唯一持有者
+/// 是行情页 <see cref="MarketWatch.MarketWatchViewModel"/>**——此前本页也有一份 MD 订阅逻辑
+/// （预设切换/登录后订阅），与行情页在同一条 ⑦ 单例 MD 连接上互相重建对方订阅（DESIGN 3.6 记过的
+/// 「两页互抢」隐患其实一半源头在这）——收敛后行情页独占 MD，交易页纯被动消费。
+/// </para>
 /// </summary>
 public partial class ConnectorViewModel : ObservableObject
 {
@@ -98,7 +104,7 @@ public partial class ConnectorViewModel : ObservableObject
 
     [ObservableProperty] private ConnectionPreset? _selectedPreset;
 
-    /// <summary>点预设 chip → 填入地址 + 自动订阅对应品种（MD 腿不需要登录）。</summary>
+    /// <summary>点预设 chip → 填入登录表单（行情订阅归行情页——预设携带的品种清单仅存档，不驱动订阅）。</summary>
     [RelayCommand]
     private async Task ApplyPresetAsync(ConnectionPreset? preset)
     {
@@ -106,15 +112,8 @@ public partial class ConnectorViewModel : ObservableObject
 
         Front = preset.Front;
         MdFront = preset.MdFront;
-        Instruments = string.Join(", ", preset.Instruments);
         MarkCurrentPreset(preset);
         await _preferences.SetAsync(PrefPreset, preset.Name);
-
-        // MD 腿独立于交易登录 —— 预设切换立即重新订阅行情
-        if (preset.Instruments.Count > 0)
-        {
-            await SubscribeMdOnlyAsync(preset.MdFront, preset.Instruments);
-        }
     }
 
     private void MarkCurrentPreset(ConnectionPreset preset)
@@ -131,8 +130,6 @@ public partial class ConnectorViewModel : ObservableObject
     [ObservableProperty] private string _password = "";
     [ObservableProperty] private string _appId = "";
     [ObservableProperty] private string _authCode = "";
-    /// <summary>订阅品种（逗号分隔）。预设切换自动填；SimNow 等真实柜台需手动填主连代码。</summary>
-    [ObservableProperty] private string _instruments = "";
     [ObservableProperty] private bool _autoLogin;
 
     // ── 状态 ──
@@ -175,19 +172,7 @@ public partial class ConnectorViewModel : ObservableObject
                 AuthCode = AuthCode.Trim(),
             });
 
-            // 登录后立即订阅行情（用表单里的品种列表，空则跳过）
-            var symbols = ParseInstruments();
-            if (symbols.Length > 0)
-            {
-                await _session.SubscribeMarketDataAsync(new CtpMarketDataConnect
-                {
-                    MdFrontAddress = MdFront.Trim(),
-                    BrokerId = Broker.Trim(),
-                    UserId = UserId.Trim(),
-                    Password = Password ?? "",
-                }, symbols);
-            }
-
+            // 不在此订阅行情——MD 的唯一持有者是行情页（见类注释：两条订阅在同一单例连接上互抢）
             StatusText = $"已连接（交易日 {result.TradingDay}）";
         }
         catch (Exception ex)
@@ -215,30 +200,6 @@ public partial class ConnectorViewModel : ObservableObject
         }
         IsConnected = _session.IsConnected;
     }
-
-    /// <summary>仅订阅行情（MD 腿独立于交易登录，预设切换时调用）。</summary>
-    private async Task SubscribeMdOnlyAsync(string mdFront, IReadOnlyList<string> symbols)
-    {
-        try
-        {
-            StatusText = $"行情订阅中：{string.Join(",", symbols)}";
-            await _session.SubscribeMarketDataAsync(new CtpMarketDataConnect
-            {
-                MdFrontAddress = mdFront.Trim(),
-                BrokerId = Broker.Trim(),
-                UserId = string.IsNullOrWhiteSpace(UserId) ? "guest" : UserId.Trim(),
-                Password = Password ?? "",
-            }, symbols);
-            StatusText = $"已订阅 {string.Join(",", symbols)}";
-        }
-        catch (Exception ex)
-        {
-            StatusText = $"行情订阅失败：{ex.Message}";
-        }
-    }
-
-    private string[] ParseInstruments() => Instruments
-        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private async Task SaveFormPrefsAsync()
     {

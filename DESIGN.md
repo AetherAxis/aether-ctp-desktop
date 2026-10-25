@@ -6,8 +6,8 @@
 
 ⑪ 是 ⑩ `aether-workbench` 的消费者，也是 ⑦ `ctp-net-client`（`ICtpSession`）的原始宿主：登录、行情、账户/持仓/委托均在本进程完成，无服务端必需调用、无平台登录。
 
-- **范围内**：行情（纯 MD 看板）、连接器、交易（行情+账户/持仓/委托）、策略、钱包 5 tab。
-- **范围外**：AI/知识对象接线、打包分发；实盘仍由 ⑧ `CtpConsole --run-strategy` 承担。
+- **范围内**：行情（纯 MD 看板 + 主力合约直爬）、交易（登录栏 + 账户/持仓/委托）、钱包——三 tab（2026-10-25 布局收敛，原五 tab 见 §3.8）。
+- **范围外**：AI/知识对象接线（归 ⑮ aether-ai-app）、打包分发；实盘仍由 ⑧ `CtpConsole --run-strategy` 承担。
 - **仓库边界**：单项目，跨仓 `ProjectReference`，未包化。
 
 ## 2. 项目组成
@@ -16,13 +16,12 @@
 |---|---|---|---|
 | `Aether.Desktop.csproj` | `WinExe`/`net10.0`；macOS frameworks 复制 | — | ⑩、⑦（③②传递）、①、④ |
 | `Program.cs`、`App.axaml(.cs)` | 入口；DI、`AddCtpInfrastructure`、`AddWorkbench` | `Program`、`App` | Avalonia、⑩、⑦、DI |
-| `DesktopWorkspace.cs` | PanelKeys + 五 tab 定义 | `PanelKeys`、`DesktopWorkspace` | ⑩ |
-| `AppViewContributor.cs` | 注册五 panel 视图/VM 工厂 | `IViewRegistryContributor` | ⑩ |
+| `DesktopWorkspace.cs` | PanelKeys + 三 tab 定义 | `PanelKeys`、`DesktopWorkspace` | ⑩ |
+| `AppViewContributor.cs` | 注册三 panel 视图/VM 工厂 | `IViewRegistryContributor` | ⑩ |
 | `JsonPreferencesStore.cs` | JSON 偏好，读写同步 | `JsonPreferencesStore` | ⑩ |
-| `MarketWatch/` | 行情看板：MD 免登录订阅、tick 原位更新、涨跌口径；真实前置自动爬主力合约 | `MarketWatchViewModel`、`MainFuturesCatalog`、`QuoteRow`、`MarketMath` | ⑦ |
-| `Connector/` | 登录/登出、预设、订阅 | `ConnectorViewModel`、`ConnectionPreset` | ⑦ |
-| `Futures/` | 行情板+账户/持仓/委托，回调编组到 UI | `FuturesViewModel`、`TickRow` 等 | ⑦ |
-| `Strategy/` | 回测/实盘入口（M3 占位） | `StrategyViewModel`、`StrategyInfo` | MVVM |
+| `MarketWatch/` | 行情看板：MD 免登录订阅（**MD 唯一持有者**）、tick 原位更新、涨跌口径、真实前置自动爬主力合约 | `MarketWatchViewModel`、`MainFuturesCatalog`、`QuoteRow`、`MarketMath` | ⑦ |
+| `Connector/` | 登录控制器（寄居交易页顶栏）：登录/登出、预设、登录档案；不碰 MD | `ConnectorViewModel`、`ConnectionPreset` | ⑦ |
+| `Futures/` | 交易页：登录栏 + 账户/持仓/委托，回调编组到 UI；tick 只更新持仓现价 | `FuturesViewModel`、`PositionRow`、`OrderRow` | ⑦ |
 | `Wallet/` | 链设置、钱包导入、充提、场内现金 | `WalletViewModel` | ① `LedgerClient`、④ `SimRpcClient` |
 | `Directory.Packages.props`、`ci.yml` | 中央包版本；Release 构建，checkout 六仓 | — | Avalonia、MVVM、DI、Actions |
 
@@ -38,23 +37,25 @@
 - **理由**：⑩ 零业务依赖；布局可序列化，插件产出同一份定义。
 - **代价**：注册键是字符串，漏注册只在运行时空 panel。
 
-### 3.3 连接器独立成页，其余页被动消费单例 session
-- **决策**：登录/重连只在 `ConnectorViewModel`；期货页订阅 `ConnectionStateChanged` 刷新。
-- **理由**：单例 session 只有一个连断所有者，避免互踢线。
-- **代价**：跨 tab 时序只靠状态文本提示。
+### 3.3 登录控制器独立成 VM、寄居交易页顶栏（2026-10-25 收敛；原「连接器独立成页」）
+- **决策**：登录/重连只在 `ConnectorViewModel`（连断唯一所有者，避免互踢线）；其 UI 从独立 tab 收编为
+  交易页顶栏（预设 chips + 前置/用户号/密码 + 高级字段行）；`FuturesViewModel.Connector` 属性作为绑定源。
+- **理由**：登录是手段不是目的地——独立成页后登录完就是一块死空间；且旧连接器还带一份 MD 订阅逻辑
+  （预设切换/登录后订阅），与行情页在 ⑦ 单例 MD 连接上互抢重建。收敛后**交易页零 MD 代码**。
+- **代价**：跨页时序只靠状态文本提示；交易页顶栏比纯交易内容多两行。
 
 ### 3.4 偏好 `GetAsync` 同步完成
 - **决策**：返回 `Task.FromResult`；`SetAsync` 同步落盘、吞异常。
 - **理由**：引擎启动期在 UI 线程同步恢复主题/窗口尺寸，真异步会死锁。
 - **代价**：主线程写盘；磁盘故障静默。
 
-### 3.5 M1 只做期货页：bot 运行证据面
-- **决策**：聚合行情板、账户、持仓、委托；委托查询保持手动。
+### 3.5 M1 交易页 = bot 运行证据面
+- **决策**：登录栏 + 账户 + 持仓 + 委托；委托查询保持手动。
 - **理由**：持仓变化、MM 挂单、权益变化与 tick 流即 bot 运行证据；委托空表会触发 SDK 30s 超时拖停管线。
-- **代价**：委托非实时；自动刷新未落地（§6-4）。
+- **代价**：委托非实时；下单入口未做（界面与 VM 均无报单命令——README 旧版写「限价/市价下单」是夸大，已改口）。
 
 ### 3.6 行情页独立成 tab，且不要求交易登录（2026-10-25）
-- **决策**：新增「行情」tab 作为首屏，只连 MD 腿并自动订阅；交易登录仍归连接器 tab。
+- **决策**：新增「行情」tab 作为首屏，只连 MD 腿并自动订阅；交易登录归交易页顶栏（§3.3 收敛后）。
 - **默认本地前置（2026-10-25 修正）**：默认值从远程 `117.72.186.128:17802` 改为本地 `127.0.0.1:17802`。
   实测证据：市场活跃时（本地前置 30 秒推 190 帧）远程 17802 只回订阅快照的 2 帧、不推流；本机拓扑是
   「两个 bot → 本地前置 → 远程交易所」，tick 由本地前置下发。远程 chip 仍在，服务器前置重新部署后一键切回。
@@ -87,6 +88,20 @@
     防源头大小写漂移；移植自 Stockapp `ToCtpInstrumentCode`，补 TL（三十债，原表漏）。
   - **SimNow 账号/密码不进仓**：仓里只有公开前置地址；凭据按工作区纪律留根 CLAUDE.md / 会话现填。
 
+### 3.8 布局收敛：五 tab → 三 tab（2026-10-25，用户「之前的页面是不是多余了」）
+- **决策**：行情 / 交易 / 钱包。撤「连接器」tab（收编为交易页顶栏，§3.3）；撤「策略」tab（假按钮桩，
+  接 ⑥ 运行时时以真功能回归）；交易页自带行情板移除（与行情页完全重复，看行情归行情页）。
+- **理由**：三块冗余——① 登录是手段不是目的地，独立成页即死空间；② 交易页行情板与行情页重复，
+  且依赖连接器的 MD 订阅活着（两处 MD 订阅在同一 ⑦ 单例连接上互抢重建——DESIGN 3.6 记过的隐患
+  一半源头在连接器）；③ 策略页的「回测/实盘」按钮只改状态文本——空壳 UI 比没有更糟。
+- **取舍**：
+  - MD 订阅唯一持有者 = 行情页（`MarketWatchViewModel`）。交易页 tick 只剩一个消费点：持仓「现价」列
+    （浮盈仍走 3s 轮询的柜台口径 `PositionProfit`，不用价差自算）。行情页订阅面覆盖不到的持仓合约
+    现价列静止——可接受（要看就切行情页/加订阅）。
+  - 连接预设档案（`ConnectionPreset.Instruments`）保留字段但不再驱动订阅——用户档兼容 + 测试不动。
+  - 删除 `PresetIsCurrentConverter`（零引用死代码）与 `TickRow`（随行情板移除）。
+- **代价**：旧五 tab 布局档由 ⑩ 的容错恢复（实测启动无异常）；策略能力回归要等 ⑥ 接线批次。
+
 ## 4. 运行与验证
 
 ```bash
@@ -112,12 +127,12 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 
 | # | 优先级 | 项目 | 现状证据 | 建议 | 代价 / 风险 |
 |---|---|---|---|---|---|
-| 1 | P0 | ~~无测试项目~~（已建，59 例；CI 仍只有 Build 步） | `tests/Aether.Desktop.Tests` | CI 补 Test 步 | 需 CI 环境有 macOS frameworks（行情测试不碰原生库） |
-| 2 | P0 | 文档与代码不一致 | README 曾称三页；2026-10-25 已按五 tab 重写 | 保持文档随 tab 变更同步 | 无代码风险 |
-| 3 | P1 | 持仓均价与浮亏错误 | `RefreshPositionsAsync` 用 `tick.LastPrice`（缺失为 0）作 `AvgPrice` 再算 `Profit` | 改用 `CtpPosition.PositionProfit`；契约补均价后改真均价 | 改契约需同步 ③⑦ mapper |
-| 4 | P1 | 自动轮询未实现 | README 称 3s 轮询；无 `Timer`/`Task.Delay`，仅建连与手动刷新时查询 | `DispatcherTimer` 或 `PeriodicTimer` + UI 编组 | 与 tick 共用 UI 线程，防阻塞 |
-| 5 | P1 | 密码明文落盘 | `SaveFormPrefsAsync` 原样写 `Password` 到 `preferences.json` | 接系统钥匙串，偏好只存引用 | 需跨平台抽象；旧明文需清理 |
-| 6 | P2 | 策略页为桩 | `RunBacktest`/`StartLive` 只改状态文本，无 ⑥ 运行时引用 | 接 ⑥ `IBacktestRuntime`/`ILiveTradingRuntime` | 新增依赖，验证成本高 |
+| 1 | P0 | ~~无测试项目~~（已建，84 例，CI 已加 Test 步） | `tests/Aether.Desktop.Tests` | — | — |
+| 2 | P0 | 文档与代码不一致 | README 曾与实际 tab 不符；已随 2026-10-25 布局收敛重写 | 保持文档随 tab 变更同步 | 无代码风险 |
+| 3 | P1 | ~~持仓均价与浮亏错误~~（已修：柜台 `PositionCost`/`PositionProfit` 口径，见 §7） | — | — | — |
+| 4 | P1 | ~~自动轮询未实现~~（已修：`DispatcherTimer` 3s，见 §7） | — | — | — |
+| 5 | P1 | ~~密码明文落盘~~（已修：不落盘 + 清历史明文键，见 §7） | — | 恢复「记住密码」须接系统钥匙串 | 需跨平台抽象 |
+| 6 | P2 | ~~策略页为桩~~（2026-10-25 布局收敛**已撤**——接 ⑥ `IBacktestRuntime`/`ILiveTradingRuntime` 时以真功能回归） | — | — | 新增依赖，验证成本高 |
 | 7 | P2 | 预设硬编码 | `DefaultPresets` 写死 `117.72.186.128` 与本地端口 | 外置配置，内置默认兜底 | 需定义格式与回退 |
 | 8 | P2 | 跨仓源码耦合 | 四个 `ProjectReference` 指上级目录；CI checkout 六仓 | P4 推进 PackageReference + 固定版本 | 需建包发布与版本对齐 |
 
@@ -168,3 +183,18 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
   断连窗口恢复后重跑 harness）**：免凭据 MD 登录（user=watching/空密码）+ 87/87 合约全部有 tick——
   60s 窗口 6307 笔（约 105 tick/s），jd2612 3296 / sc2612 728 / sn2611 384290 等真实盘口带 bid/ask/vol/oi。
   下午 14 时的「不可达」是 SimNow 天级断连窗口（两端口 TCP 超时约 3 小时），非代码问题。
+
+## 10. 本轮落地（2026-10-25）：布局收敛五 tab → 三 tab
+
+- **三 tab**：行情 / 交易 / 钱包（`DesktopWorkspace`）。决策与理由见 §3.8；旧五 tab 布局档由 ⑩ 容错恢复。
+- **交易页收编登录栏**：`FuturesView` 顶两行 = 预设 chips + 交易前置/用户号/密码 + 连接/断开 + 状态
+  （主行）与经纪商/行情前置/AppId/授权码/自动连接（高级行），绑定源 `FuturesViewModel.Connector`
+  （`ConnectorViewModel` 保持连断唯一所有者）。删除 `ConnectorView` 与 `PresetIsCurrentConverter`（零引用）。
+- **连接器 MD 逻辑删除**：`Instruments` 字段、预设切换订阅、登录后订阅全部移除——MD 唯一持有者
+  是行情页，交易页零 MD 代码（消除同连接互抢重建）。
+- **交易页行情板移除**：`Quotes`/`TickRow` 删除，tick 只更新持仓「现价」（`_lastPrice` 缓存 +
+  `PositionRow.CurrentPrice`）；持仓/委托表转全宽。
+- **策略页撤除**：`Strategy/` 三文件删除（假按钮桩）；PanelKeys/贡献者/App DI 同步收敛。
+- **测试**：84/84 通过（纯逻辑面不涉 UI 布局，无需新增——布局属 GUI 实跑验收面）。
+- **实跑验收（L2）**：重构后应用启动无异常（旧五 tab 布局档恢复正常），行情 tab 冷启动自动连本地
+  前置出数（ax001 19:35:35 tick）；三 tab 形态与登录栏布局留用户日常使用核实。
