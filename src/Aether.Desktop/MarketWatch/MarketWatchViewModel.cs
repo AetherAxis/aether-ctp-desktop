@@ -12,16 +12,23 @@ using Ctp.Net;
 namespace Aether.Desktop.MarketWatch;
 
 /// <summary>
-/// 行情页 ViewModel —— 一个「打开就能看」的行情终端：只连行情前置（MD 腿，不需要交易账号/密码），
+/// 行情页 ViewModel —— 一个「打开就能看」的行情终端：只连行情前置（MD 腿，不需要交易登录），
 /// 订阅品种后把 tick 铺成看板。存在的理由：两个 bot 在跑的时候，需要一个能**肉眼看到**价格在动的面。
 /// <para>
 /// 与 <see cref="Connector.ConnectorViewModel"/> 的分工：连接器管交易登录（那才有账户/持仓/委托）；
 /// 本页只消费行情腿，且**不依赖交易登录**——冷启动即自动订阅，省掉「先登录才能看行情」这一步。
+/// 凭据口径：本前置/⑤ 的 MD 腿不校验（零凭据冷启动）；真实前置（SimNow 等）校验 user/密码——
+/// 真前置会话经 MD 密码框现填（不落盘）。
 /// </para>
 /// <para>
 /// 共用同一条 MD 连接（<see cref="ICtpSession"/> 单例）：若有人在连接器里用别的账号登录并订阅，
 /// MD 连接会按那个账号重建，本页订阅随之失效——所以这里显示「静默 N 秒」并留一个「重新订阅」按钮，
 /// 不做后台偷偷重建（两页互抢订阅比失效更难查）。
+/// </para>
+/// <para>
+/// 订阅面（2026-10-25 起）：仿真前置（本地/远程）= 手输品种（默认 ax001）；真实前置（SimNow）=
+/// <see cref="MainFuturesCatalog"/> 客户端直爬的主力合约目录（ax001 在真实柜台不存在——自动替换，
+/// 用户手输过品种则尊重输入）。「主力合约」按钮任何时候可手动现爬现订。
 /// </para>
 /// </summary>
 public partial class MarketWatchViewModel : ObservableObject
@@ -44,6 +51,12 @@ public partial class MarketWatchViewModel : ObservableObject
     /// </para>
     /// </summary>
     public const string LocalMdFront = "tcp://127.0.0.1:17802";
+    /// <summary>
+    /// 真实前置（SimNow 行情腿）。ax001 只存在于我们的仿真柜台——连真实前置时默认品种无意义，
+    /// 订阅面自动切换为爬取的主力合约目录（见 <see cref="MainFuturesCatalog"/>）。只放公开地址，
+    /// SimNow 账号/密码按纪律留工作区根 CLAUDE.md，不进仓也不进偏好。
+    /// </summary>
+    public const string RealMdFront = MainFuturesCatalog.SimNowMdFront;
     public const string DefaultSymbols = "ax001";
 
     /// <summary>tick 速率的统计窗口（秒）。行情前置每秒推一次快照，5s 窗口既能看出「断了」也不会跳得太厉害。</summary>
@@ -53,15 +66,19 @@ public partial class MarketWatchViewModel : ObservableObject
 
     private readonly ICtpSession _session;
     private readonly IPreferencesStore _preferences;
+    private readonly MainFuturesCatalog _mainFutures;
     private readonly Dictionary<string, QuoteRow> _rowsByInstrument = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>爬取到的主力合约中文名（代码 → 名称）——看板「名称」列的数据源；手输品种查不到就留空。</summary>
+    private Dictionary<string, string> _namesByInstrument = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<DateTime> _recentTicks = new();
     private readonly DispatcherTimer _pulse = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private DateTime _lastTickAt = DateTime.MinValue;
 
-    public MarketWatchViewModel(ICtpSession session, IPreferencesStore preferences)
+    public MarketWatchViewModel(ICtpSession session, MainFuturesCatalog mainFutures, IPreferencesStore preferences)
     {
         _session = session;
+        _mainFutures = mainFutures;
         _preferences = preferences;
 
         // 启动同步恢复上次的订阅档案（与连接器同款：GetAsync 同步完成）
@@ -87,6 +104,11 @@ public partial class MarketWatchViewModel : ObservableObject
     [ObservableProperty] private string _mdFront = LocalMdFront;
     [ObservableProperty] private string _broker = "9999";
     [ObservableProperty] private string _user = "watching";
+    /// <summary>
+    /// MD 密码（可选）：本前置与 ⑤ 不校验（留空即可）；真实前置（SimNow 等）校验——console 真前置会话
+    /// 一直用登录凭据连 MD（抓包实录）。**会话内存而已，绝不落盘**（与连接器「密码不落盘」同政策）。
+    /// </summary>
+    [ObservableProperty] private string _mdPassword = "";
     /// <summary>订阅品种（逗号分隔）。点「订阅」时整表替换看板行。</summary>
     [ObservableProperty] private string _symbolInput = DefaultSymbols;
 
@@ -107,7 +129,10 @@ public partial class MarketWatchViewModel : ObservableObject
 
     // ── 命令 ──
 
-    /// <summary>订阅（整表替换品种）。增量订阅新合约；品种被删掉时只从看板移除、不主动退订（契约无逐合约退订）。</summary>
+    /// <summary>
+    /// 订阅（整表替换品种）。增量订阅新合约；品种被删掉时只从看板移除、不主动退订（契约无逐合约退订）。
+    /// 连真实前置且品种还是仿真默认（ax001）时，先爬主力合约目录替换订阅面（见 <see cref="MainFuturesCatalog"/>）。
+    /// </summary>
     [RelayCommand]
     private async Task SubscribeAsync()
     {
@@ -126,12 +151,88 @@ public partial class MarketWatchViewModel : ObservableObject
         }
 
         IsBusy = true;
-        StatusText = $"订阅中：{string.Join(",", symbols)}…";
+        try
+        {
+            // 真实前置 + 仿真默认品种 ⇒ 直接爬主力合约（ax001 在真实柜台不存在，订阅了也永远静默）。
+            // 用户手输过品种（≠ ax001 默认）则尊重输入——那是明确的订阅意图。
+            var fromCrawl = false;
+            if (IsRealFrontAddress(MdFront) && IsSimOnlyBoard(symbols))
+            {
+                try
+                {
+                    StatusText = "真实前置：爬取主力合约…";
+                    var entries = await _mainFutures.FetchAsync();
+                    if (entries.Count > 0)
+                    {
+                        RememberNames(entries);
+                        symbols = entries.Select(e => e.Code).ToList();
+                        fromCrawl = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    StatusText = $"主力合约爬取失败（{ex.Message}）——按输入品种订阅";
+                }
+            }
+
+            await SubscribeSymbolsAsync(symbols, fromCrawl);
+        }
+        finally
+        {
+            IsBusy = false;
+            UpdatePulse();
+        }
+    }
+
+    /// <summary>
+    /// 手动爬主力合约并订阅（当前前置无关——真实前置的标准看板面；冷启动自动爬取失败后也可用它重试）。
+    /// 爬取结果不写进 <see cref="SymbolInput"/> / 偏好：主力按月换约，存档会过期；每次现爬现订阅。
+    /// </summary>
+    [RelayCommand]
+    private async Task MainFuturesAsync()
+    {
+        if (IsBusy) return;
+        if (string.IsNullOrWhiteSpace(MdFront))
+        {
+            StatusText = "请先填行情前置地址（tcp://host:port）";
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            StatusText = "爬取主力合约…";
+            var entries = await _mainFutures.FetchAsync();
+            if (entries.Count == 0)
+            {
+                StatusText = "主力合约目录为空（数据源无返回）";
+                return;
+            }
+            RememberNames(entries);
+            await SubscribeSymbolsAsync(entries.Select(e => e.Code).ToList(), fromCrawl: true);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"主力合约爬取失败：{ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+            UpdatePulse();
+        }
+    }
+
+    /// <summary>订阅核心（命令共用，<b>不管理 <see cref="IsBusy"/></b>——由各命令包持）：铺看板行 → 落偏好（爬取来源不落品种档）→ 连 MD 订阅 → 回放会话缓存。</summary>
+    private async Task SubscribeSymbolsAsync(IReadOnlyList<string> symbols, bool fromCrawl)
+    {
+        StatusText = fromCrawl ? $"订阅中：主力合约 {symbols.Count} 个…" : $"订阅中：{string.Join(",", symbols)}…";
         try
         {
             SyncRows(symbols);
             await _preferences.SetAsync(PrefMdFront, MdFront.Trim());
-            await _preferences.SetAsync(PrefSymbols, string.Join(",", symbols));
+            // 爬取来的品种不落档：主力按月换约，存档跨月即过期；下次连真实前置重新现爬
+            if (!fromCrawl)
+                await _preferences.SetAsync(PrefSymbols, string.Join(",", symbols));
             await _preferences.SetAsync(PrefBroker, Broker.Trim());
             await _preferences.SetAsync(PrefUser, User.Trim());
 
@@ -140,7 +241,7 @@ public partial class MarketWatchViewModel : ObservableObject
                 MdFrontAddress = MdFront.Trim(),
                 BrokerId = string.IsNullOrWhiteSpace(Broker) ? "9999" : Broker.Trim(),
                 UserId = string.IsNullOrWhiteSpace(User) ? "watching" : User.Trim(),
-                Password = "",   // MD 登录不校验密码（本前置与 SimNow 皆然）；也绝不把密码写进偏好
+                Password = MdPassword,   // 本前置不校验（留空即可）；真实前置需要——不落盘，每次会话现填
             }, symbols);
 
             // 会话缓存里可能已有这些合约的 tick（重订阅/切页后立刻有数，不用等下一拍）
@@ -150,18 +251,13 @@ public partial class MarketWatchViewModel : ObservableObject
 
             IsSubscribed = _session.IsMdSubscribed;
             StatusText = IsSubscribed
-                ? $"已订阅 {string.Join(",", symbols)}（{MdFront}）"
+                ? (fromCrawl ? $"已订阅主力合约 {symbols.Count} 个（{MdFront}）" : $"已订阅 {string.Join(",", symbols)}（{MdFront}）")
                 : "订阅请求已发出，但 MD 连接未建立";
         }
         catch (Exception ex)
         {
             IsSubscribed = _session.IsMdSubscribed;
             StatusText = $"行情订阅失败：{ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-            UpdatePulse();
         }
     }
 
@@ -193,6 +289,23 @@ public partial class MarketWatchViewModel : ObservableObject
     /// <summary>一键切本地前置（本地开发态：前置在本机、交易所仍指远程）。</summary>
     [RelayCommand]
     private void UseLocal() => MdFront = LocalMdFront;
+
+    /// <summary>一键切真实前置（SimNow 行情腿——订阅面自动爬主力合约目录）。</summary>
+    [RelayCommand]
+    private void UseReal() => MdFront = RealMdFront;
+
+    // ── 前置/品种判定 ──
+
+    /// <summary>是否真实前置（SimNow 行情腿）。地址完全匹配才判真——我们自己的仿真前置（本地/远程）各有专属地址。</summary>
+    internal static bool IsRealFrontAddress(string? mdFront) =>
+        string.Equals((mdFront ?? "").Trim(), RealMdFront, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>看板品种是否还是仿真默认（ax001 一族）——真实前置上这些代码不存在，才轮到自动爬主力替换。</summary>
+    internal static bool IsSimOnlyBoard(IReadOnlyList<string> symbols) =>
+        symbols.Count > 0 && symbols.All(s => string.Equals(s, DefaultSymbols, StringComparison.OrdinalIgnoreCase));
+
+    private void RememberNames(IReadOnlyList<MainFuturesEntry> entries) =>
+        _namesByInstrument = entries.ToDictionary(e => e.Code, e => e.Name, StringComparer.OrdinalIgnoreCase);
 
     // ── 数据流 ──
 
@@ -248,7 +361,7 @@ public partial class MarketWatchViewModel : ObservableObject
 
     // ── 看板行维护 ──
 
-    /// <summary>把看板行对齐到品种清单：保留已有行的数据，删掉移除的，新合约追加到末尾。</summary>
+    /// <summary>把看板行对齐到品种清单：保留已有行的数据，删掉移除的，新合约追加到末尾。名称列取爬取目录的中文名（查不到留空）。</summary>
     private void SyncRows(IReadOnlyList<string> symbols)
     {
         var wanted = new HashSet<string>(symbols, StringComparer.OrdinalIgnoreCase);
@@ -263,7 +376,7 @@ public partial class MarketWatchViewModel : ObservableObject
         foreach (var symbol in symbols)
         {
             if (_rowsByInstrument.ContainsKey(symbol)) continue;
-            var row = new QuoteRow { Instrument = symbol };
+            var row = new QuoteRow { Instrument = symbol, Name = _namesByInstrument.GetValueOrDefault(symbol) ?? "" };
             _rowsByInstrument[symbol] = row;
             Quotes.Add(row);
         }
@@ -282,6 +395,9 @@ public partial class MarketWatchViewModel : ObservableObject
 public partial class QuoteRow : ObservableObject
 {
     public string Instrument { get; init; } = "";
+
+    /// <summary>中文名（主力合约目录爬取时带出；手输/仿真品种无来源则空）。</summary>
+    public string Name { get; init; } = "";
 
     /// <summary>涨跌基准价（0 = 尚未确定）。</summary>
     public double Reference { get; private set; }

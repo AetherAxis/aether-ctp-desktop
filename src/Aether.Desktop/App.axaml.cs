@@ -29,6 +29,7 @@ public partial class App : Application
         var services = new ServiceCollection();
         services.AddSingleton<IPreferencesStore>(new JsonPreferencesStore(Path.Combine(dataDir, "preferences.json")));
         services.AddCtpInfrastructure(sqliteDbPath: Path.Combine(dataDir, "ctp.db"));   // ⑦ 同款组件（多档案凭据仓）
+        services.AddSingleton<MainFuturesCatalog>();   // 主力合约目录——客户端直爬东方财富（真实前置的订阅面）
         services.AddWorkbench(DesktopWorkspace.Definition);                            // ⑩ 引擎 + 三 tab 布局
         services.AddSingleton<IViewRegistryContributor, AppViewContributor>();
         services.AddSingleton<MarketWatchViewModel>();

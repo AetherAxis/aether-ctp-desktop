@@ -8,9 +8,13 @@
 ## 里程碑
 
 - **M0 行情页（2026-10-25）观测面**：只连行情腿（MD）的看板——**不需要交易账号/密码**，冷启动自动
-  连上并订阅（默认本地前置 `tcp://127.0.0.1:17802` + `ax001`），合约/最新/涨跌/涨跌幅/买卖一档/
+  连上并订阅（默认本地前置 `tcp://127.0.0.1:17802` + `ax001`），合约/名称/最新/涨跌/涨跌幅/买卖一档/
   成交量/持仓量/变动次数/时间一屏看完。两个 bot 跑起来时，「价格在动」直接看得见：变动次数在涨、
   买卖一档在跳、tick/s 在跑；行情静默 10s 会在状态栏点名（前置断了，或 MD 被别的账号重建）。
+  **真实前置（SimNow）模式（2026-10-25）**：「SimNow」chip 一键切真前置——连真实前置且品种还是
+  仿真默认（ax001）时，订阅面自动替换为**客户端直爬的期货主力合约目录**（东方财富 mk0830 板块，
+  一品种一条，约 87 个；`MainFuturesCatalog`——移植自原 Web 服务端的爬虫，不再经服务端/证券库同步）；
+  「主力合约」按钮任何时候可手动现爬现订（主力按月换约，爬取结果不落档）。
 - **M1 连接器 + 交易**：连接器 tab 管登录/预设/订阅（ICtpSession 单例，交易与钱包都在它之上）；
   交易 tab = 行情板 + 账户摘要 + 持仓/委托表 + 限价/市价下单。**「bot 在跑」的证据面**——持仓在动、
   MM 挂单躺在委托页、权益在变、tick 实时流；账户/持仓每 3s 自动轮询（委托表手动刷新——空表查询
@@ -24,9 +28,14 @@
 dotnet run --project aether-desktop/src/Aether.Desktop
 ```
 
-**看行情**：启动即进行情页——行情前置默认本地 `tcp://127.0.0.1:17802`（转连远程交易所；「远程」chip 切
+**看行情（仿真链）**：启动即进行情页——行情前置默认本地 `tcp://127.0.0.1:17802`（转连远程交易所；「远程」chip 切
 `tcp://117.72.186.128:17802`），品种默认 `ax001`；改完点「订阅」。订阅档案（前置/经纪商/用户/品种）落
-`preferences.json`，下次启动照旧自动连。**行情腿不校验密码**，所以看行情不需要任何账号。
+`preferences.json`，下次启动照旧自动连。**本前置的行情腿不校验密码**，仿真链看行情不需要任何账号。
+
+**看行情（真实前置 SimNow）**：「SimNow」chip 切 `tcp://182.254.243.31:40011`（公开地址，账号/密码不进仓），
+用户/MD 密码填 SimNow 账号（**会话内存，不落盘**——真实前置 MD 登录校验凭据；本前置留空即可）。
+点「订阅」时若品种还是 ax001 默认，先爬主力合约目录再整表订阅；爬取失败则按输入品种订阅并提示。
+主力目录每次现爬（87 个左右，DCE 月均合约已过滤）——换月自动跟进，不依赖任何服务端。
 
 **要交易/看账户**：连接器 tab 填交易前置（与连 SimNow 同形）：本地实验室 `tcp://127.0.0.1:17901/17902`、
 标准端口 `tcp://127.0.0.1:17801/17802`、服务器 `tcp://<服务器IP>:17801/17802`——账户/密码即交易所账户
@@ -46,9 +55,10 @@ dotnet run --project aether-desktop/src/Aether.Desktop
 | `DesktopWorkspace.cs` | 工作台定义（行情/连接器/交易/策略/钱包五 tab）+ App 自己的 PanelKeys |
 | `AppViewContributor.cs` | IViewRegistryContributor——五个 panel 的视图/VM 工厂注册进 ⑩ 引擎 |
 | `JsonPreferencesStore.cs` | IPreferencesStore 的 JSON 文件实现（GetAsync 同步完成——引擎启动期同步恢复依赖此） |
-| `MarketWatch/MarketWatchViewModel.cs` | 行情页 VM：MD 订阅（免登录）/看板行原位更新/每秒速率与静默检测；`QuoteRow.Apply` 吃 tick |
+| `MarketWatch/MarketWatchViewModel.cs` | 行情页 VM：MD 订阅 / 真实前置自动爬主力合约 / 看板行原位更新 / 每秒速率与静默检测；`QuoteRow.Apply` 吃 tick |
+| `MarketWatch/MainFuturesCatalog.cs` | 期货主力合约目录——客户端直爬东方财富 mk0830（Web 服务端 `SecuritySyncService` 的移植；代码规整 + 月均过滤 + sc→交易所），`NormalizeCode` 钉单测 |
 | `MarketWatch/MarketMath.cs` | 涨跌口径纯计算（昨结→昨收→首笔）+ 显示格式——被单测钉住 |
-| `MarketWatch/MarketWatchView.axaml` | 行情看板视图：订阅栏 + 口径条 + 十三列表格 |
+| `MarketWatch/MarketWatchView.axaml` | 行情看板视图：订阅栏（远程/本地/SimNow chips + MD 密码 + 主力合约按钮）+ 口径条 + 十四列表格 |
 | `Futures/FuturesViewModel.cs` | 期货页 VM：登录/订阅/行情板/账户/持仓/委托；3s 轮询；SDK 回调 UI 线程编组 |
 | `Futures/FuturesView.axaml` | 期货页视图：登录栏 + 行情板 + 账户摘要 + 持仓/委托表 |
 | `Strategy/`、`Wallet/` | 策略页（桩，待接 ⑥ 运行时）、钱包页（链查询 + 提币） |
@@ -62,9 +72,10 @@ dotnet run --project aether-desktop/src/Aether.Desktop
 ## 测试
 
 ```bash
-dotnet test aether-desktop.slnx    # tests/Aether.Desktop.Tests：59 例纯逻辑面
+dotnet test aether-desktop.slnx    # tests/Aether.Desktop.Tests：84 例纯逻辑面
 ```
 
 覆盖偏好存储（同步契约/坏档重建/密码键可彻底删除）、连接预设档案（用户档优先/坏档回退内置）、
 显示格式（方向/开平/委托状态字符→中文，以 ③ 契约为准）、行情口径（涨跌基准回退/无值哨兵不归零/
-变动次数只数真实变化/空簿顶显示破折号）。控件行为与真实登录/下单仍靠实跑验收。
+变动次数只数真实变化/空簿顶显示破折号）、主力合约目录（解析/代码规整/月均过滤/坏 JSON 抛出/
+真实前置判据/仿真默认看板判据）。控件行为与真实登录/下单仍靠实跑验收。
