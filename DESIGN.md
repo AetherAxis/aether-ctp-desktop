@@ -250,3 +250,10 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
   品种 + 主力合约 + 订阅/断开 + 状态。
 - VM 的 MdFront/Broker/User/MdPassword 保留为**内部连接状态**（档案套用进来、订阅与建档消费），
   只是不再绑输入框——临时改配置的路径从页面消失，统一走档案。
+
+## 15. 本轮落地（2026-10-26）：ax001 名称兜底（名称列）
+
+- 板上 ax001 行的「名称」列从空 → **Aether币价期货**：`SimInstrumentNames` 内置兜底（与 ④
+  InstrumentCatalog 品种表同源同值——只此一条，不臆造其它名字）。权威源在服务端（④/RPC 已带
+  `Name`）；⑤ CTP wire「查合约」名称槽未逆向（FEATURE_MATRIX §1-8 follow-up）前，桌面端用内置
+  兜底，wire 补齐后改走服务端名。爬取目录（真实品种）名称不受影响。

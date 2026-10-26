@@ -513,7 +513,17 @@ public partial class MarketWatchViewModel : ObservableObject
 
     // ── 看板行维护 ──
 
-    /// <summary>把看板行对齐到品种清单：保留已有行的数据，删掉移除的，新合约追加到末尾。名称列取爬取目录的中文名（查不到留空）。</summary>
+    /// <summary>
+    /// 仿真自有品种的中文名兜底（名称列）：与 ④ InstrumentCatalog 同源同值——ax001 = Aether币价期货
+    /// （服务端已是权威源，2026-10-26 起 queryInstruments/RPC 携带；CTP wire「查合约」应答帧的名称槽
+    /// 未逆向——⑤ FEATURE_MATRIX 记 follow-up——wire 补齐前桌面端用内置兜底，爬取目录的真实品种名不受影响）。
+    /// </summary>
+    private static readonly Dictionary<string, string> SimInstrumentNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ax001"] = "Aether币价期货",
+    };
+
+    /// <summary>把看板行对齐到品种清单：保留已有行的数据，删掉移除的，新合约追加到末尾。名称列取爬取目录的中文名，查不到退仿真品种兜底。</summary>
     private void SyncRows(IReadOnlyList<string> symbols)
     {
         var wanted = new HashSet<string>(symbols, StringComparer.OrdinalIgnoreCase);
@@ -528,7 +538,10 @@ public partial class MarketWatchViewModel : ObservableObject
         foreach (var symbol in symbols)
         {
             if (_rowsByInstrument.ContainsKey(symbol)) continue;
-            var row = new QuoteRow { Instrument = symbol, Name = _namesByInstrument.GetValueOrDefault(symbol) ?? "" };
+            var name = _namesByInstrument.GetValueOrDefault(symbol)
+                ?? SimInstrumentNames.GetValueOrDefault(symbol)
+                ?? "";
+            var row = new QuoteRow { Instrument = symbol, Name = name };
             _rowsByInstrument[symbol] = row;
             Quotes.Add(row);
         }
