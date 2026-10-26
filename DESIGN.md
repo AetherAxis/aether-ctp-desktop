@@ -6,24 +6,21 @@
 
 ⑪ 是 ⑩ `aether-workbench` 的消费者，也是 ⑦ `ctp-net-client`（`ICtpSession`）的原始宿主：登录、行情、账户/持仓/委托均在本进程完成，无服务端必需调用、无平台登录。
 
-- **范围内**：行情（纯 MD 看板 + 主力合约直爬）、交易（登录栏 + 账户/持仓/委托）、钱包——三 tab（2026-10-25 布局收敛，原五 tab 见 §3.8）。
-- **范围外**：AI/知识对象接线（归 ⑮ aether-ai-app）、打包分发；实盘仍由 ⑧ `CtpConsole --run-strategy` 承担。
-- **仓库边界**：单项目，跨仓 `ProjectReference`，未包化。
+- **范围内**：行情——单 tab 纯行情终端（MD 看板 + 主力合约直爬；2026-10-26 收敛，见 §11）。
+- **范围外**：交易/钱包（**已撤**，按需求从 git 历史回归）；AI/知识对象接线（归 ⑮ aether-ai-app）、打包分发；实盘交易由 ⑧ `CtpConsole --run-strategy` 承担。
+- **仓库边界**：单项目，跨仓 `ProjectReference`（⑩+⑦），未包化。
 
 ## 2. 项目组成
 
 | 目录/文件 | 职责 | 关键类型 | 出向依赖 |
 |---|---|---|---|
-| `Aether.Desktop.csproj` | `WinExe`/`net10.0`；macOS frameworks 复制 | — | ⑩、⑦（③②传递）、①、④ |
+| `Aether.Desktop.csproj` | `WinExe`/`net10.0`；macOS frameworks 复制 | — | ⑩、⑦（③②传递） |
 | `Program.cs`、`App.axaml(.cs)` | 入口；DI、`AddCtpInfrastructure`、`AddWorkbench` | `Program`、`App` | Avalonia、⑩、⑦、DI |
-| `DesktopWorkspace.cs` | PanelKeys + 三 tab 定义 | `PanelKeys`、`DesktopWorkspace` | ⑩ |
-| `AppViewContributor.cs` | 注册三 panel 视图/VM 工厂 | `IViewRegistryContributor` | ⑩ |
+| `DesktopWorkspace.cs` | PanelKeys + 单 tab 定义 + 交易/钱包回归指引 | `PanelKeys`、`DesktopWorkspace` | ⑩ |
+| `AppViewContributor.cs` | 注册行情 panel 视图/VM 工厂 | `IViewRegistryContributor` | ⑩ |
 | `JsonPreferencesStore.cs` | JSON 偏好，读写同步 | `JsonPreferencesStore` | ⑩ |
 | `MarketWatch/` | 行情看板：MD 免登录订阅（**MD 唯一持有者**）、tick 原位更新、涨跌口径、真实前置自动爬主力合约 | `MarketWatchViewModel`、`MainFuturesCatalog`、`QuoteRow`、`MarketMath` | ⑦ |
-| `Connector/` | 登录控制器（寄居交易页顶栏）：登录/登出、预设、登录档案；不碰 MD | `ConnectorViewModel`、`ConnectionPreset` | ⑦ |
-| `Futures/` | 交易页：登录栏 + 账户/持仓/委托，回调编组到 UI；tick 只更新持仓现价 | `FuturesViewModel`、`PositionRow`、`OrderRow` | ⑦ |
-| `Wallet/` | 链设置、钱包导入、充提、场内现金 | `WalletViewModel` | ① `LedgerClient`、④ `SimRpcClient` |
-| `Directory.Packages.props`、`ci.yml` | 中央包版本；Release 构建，checkout 六仓 | — | Avalonia、MVVM、DI、Actions |
+| `Directory.Packages.props`、`ci.yml` | 中央包版本；Release 构建 + Test（checkout 四仓：⑩⑦③②） | — | Avalonia、MVVM、DI、Actions |
 
 ## 3. 关键设计决策
 
@@ -37,22 +34,19 @@
 - **理由**：⑩ 零业务依赖；布局可序列化，插件产出同一份定义。
 - **代价**：注册键是字符串，漏注册只在运行时空 panel。
 
-### 3.3 登录控制器独立成 VM、寄居交易页顶栏（2026-10-25 收敛；原「连接器独立成页」）
-- **决策**：登录/重连只在 `ConnectorViewModel`（连断唯一所有者，避免互踢线）；其 UI 从独立 tab 收编为
-  交易页顶栏（预设 chips + 前置/用户号/密码 + 高级字段行）；`FuturesViewModel.Connector` 属性作为绑定源。
-- **理由**：登录是手段不是目的地——独立成页后登录完就是一块死空间；且旧连接器还带一份 MD 订阅逻辑
-  （预设切换/登录后订阅），与行情页在 ⑦ 单例 MD 连接上互抢重建。收敛后**交易页零 MD 代码**。
-- **代价**：跨页时序只靠状态文本提示；交易页顶栏比纯交易内容多两行。
+### 3.3 ~~登录控制器独立成 VM、寄居交易页顶栏~~（交易页已随 2026-10-26 收敛撤除，见 §11）
+- **历史决策**：登录/重连只在 `ConnectorViewModel`（连断唯一所有者）；UI 从独立 tab 收编为交易页顶栏。
+- **现状**：`Connector/` 目录已删——行情页成为 App 里唯一的 `ICtpSession` 消费者（更简单：无共享连接
+  时序问题）。交易能力回归时按 `DesktopWorkspace.cs` 注释恢复。
 
 ### 3.4 偏好 `GetAsync` 同步完成
 - **决策**：返回 `Task.FromResult`；`SetAsync` 同步落盘、吞异常。
 - **理由**：引擎启动期在 UI 线程同步恢复主题/窗口尺寸，真异步会死锁。
 - **代价**：主线程写盘；磁盘故障静默。
 
-### 3.5 M1 交易页 = bot 运行证据面
-- **决策**：登录栏 + 账户 + 持仓 + 委托；委托查询保持手动。
-- **理由**：持仓变化、MM 挂单、权益变化与 tick 流即 bot 运行证据；委托空表会触发 SDK 30s 超时拖停管线。
-- **代价**：委托非实时；下单入口未做（界面与 VM 均无报单命令——README 旧版写「限价/市价下单」是夸大，已改口）。
+### 3.5 ~~M1 交易页 = bot 运行证据面~~（交易页已随 2026-10-26 收敛撤除，见 §11）
+- **历史决策**：登录栏 + 账户 + 持仓 + 委托；委托查询保持手动。
+- **现状**：bot 运行证据面归 ⑧ console 日志 + 服务器链路；桌面端纯看行情。回归时从 git 历史取。
 
 ### 3.6 行情页独立成 tab，且不要求交易登录（2026-10-25）
 - **决策**：新增「行情」tab 作为首屏，只连 MD 腿并自动订阅；交易登录归交易页顶栏（§3.3 收敛后）。
@@ -135,8 +129,8 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 | 4 | P1 | ~~自动轮询未实现~~（已修：`DispatcherTimer` 3s，见 §7） | — | — | — |
 | 5 | P1 | ~~密码明文落盘~~（已修：不落盘 + 清历史明文键，见 §7） | — | 恢复「记住密码」须接系统钥匙串 | 需跨平台抽象 |
 | 6 | P2 | ~~策略页为桩~~（2026-10-25 布局收敛**已撤**——接 ⑥ `IBacktestRuntime`/`ILiveTradingRuntime` 时以真功能回归） | — | — | 新增依赖，验证成本高 |
-| 7 | P2 | 预设硬编码 | `DefaultPresets` 写死 `117.72.186.128` 与本地端口 | 外置配置，内置默认兜底 | 需定义格式与回退 |
-| 8 | P2 | 跨仓源码耦合 | 四个 `ProjectReference` 指上级目录；CI checkout 六仓 | P4 推进 PackageReference + 固定版本 | 需建包发布与版本对齐 |
+| 7 | P2 | ~~预设硬编码~~（连接预设随交易页撤除一并删除，2026-10-26） | — | — | — |
+| 8 | P2 | 跨仓源码耦合 | 两个 `ProjectReference`（⑩⑦）指上级目录；CI checkout 四仓 | P4 推进 PackageReference + 固定版本 | 需建包发布与版本对齐 |
 
 ## 7. 本轮升级落地（2026-10-24）
 
@@ -200,3 +194,15 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 - **测试**：84/84 通过（纯逻辑面不涉 UI 布局，无需新增——布局属 GUI 实跑验收面）。
 - **实跑验收（L2）**：重构后应用启动无异常（旧五 tab 布局档恢复正常），行情 tab 冷启动自动连本地
   前置出数（ax001 19:35:35 tick）；三 tab 形态与登录栏布局留用户日常使用核实。
+
+## 11. 本轮落地（2026-10-26）：收敛为单 tab 纯行情终端
+
+- **用户决定**：「交易和钱包可以先去掉吧，后面再按需求补」——桌面端当前就是一台行情终端。
+  删除 `Futures/`（含 `Connector/` 登录控制器——两者本为一体）与 `Wallet/` 三目录及其测试
+  （DisplayFormat/ConnectionPresets，84→60 例，其余全绿）。
+- **依赖闭包随之收窄**：① `Aether.Ledger` 与 ④ `Aether.Exchange.Rpc` 两个 ProjectReference 移除
+  （钱包页是它们在仓内的唯一消费者）；CI checkout 六仓 → 四仓（⑩⑦③②）。回归交易/钱包时按
+  `DesktopWorkspace.cs` 注释加回。
+- **ICtpSession 单消费者**：行情页是 App 里唯一的 session 消费者——共享 MD 连接的时序问题
+  （§3.6 记过的「互抢/静默」）在这个形态下不存在。
+- **实测启动**：单 tab 布局冷启动直连远程前置出数正常（旧三 tab 布局档被 ⑩ 容错恢复）。

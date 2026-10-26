@@ -6,15 +6,13 @@ namespace Aether.Desktop;
 public static class PanelKeys
 {
     public const string Market = "market";
-    public const string Trading = "trading";
-    public const string Wallet = "wallet";
 }
 
 /// <summary>
-/// App 的默认工作台：行情 / 交易 / 钱包 三 tab（2026-10-25 布局收敛，原五 tab）。
-/// 行情 = 只连行情腿的看板（MD 唯一持有者——冷启动即订阅、真实前置自动爬主力，不需要交易账号）；
-/// 交易 = 登录栏（原「连接器」tab 收编为顶栏）+ 账户/持仓/委托（行情板已移除——看行情归行情页）；
-/// 钱包 = AQ 充提。原「策略」tab 为假按钮桩，撤掉——接 ⑥ 运行时时再以真功能回归。
+/// App 的默认工作台：**单 tab 行情**（2026-10-26 收敛——用户「交易和钱包先去掉，后面按需求补」）。
+/// 桌面端当前就是一台纯行情终端：只连 MD 腿的看板 + 主力合约直爬，无交易登录、无钱包。
+/// 交易（登录栏+账户/持仓/委托）与钱包（AQ 充提）按 git 历史随时可回归——回归时把
+/// ProjectReference（① Ledger / ④ Exchange.Rpc）与 CI checkout 一并加回。
 /// </summary>
 public static class DesktopWorkspace
 {
@@ -24,8 +22,6 @@ public static class DesktopWorkspace
         Panels: new List<PanelDescriptor>
         {
             new(PanelKeys.Market, PanelKeys.Market, "行情", "futures"),
-            new(PanelKeys.Trading, PanelKeys.Trading, "交易", "activity"),
-            new(PanelKeys.Wallet, PanelKeys.Wallet, "钱包", "wallet"),
         },
-        Layout: new LayoutTabbed(new[] { PanelKeys.Market, PanelKeys.Trading, PanelKeys.Wallet }));
+        Layout: new LayoutTabbed(new[] { PanelKeys.Market }));
 }

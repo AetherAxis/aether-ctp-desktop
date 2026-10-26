@@ -19,7 +19,8 @@ jobs:
         with:
           path: aether-desktop
       # 跨仓依赖（本地 ProjectReference 拓扑——切 PackageReference 后可移除）：
-      # desktop → workbench / client / ledger / exchange.Rpc（传递：contracts / core / exchange）
+      # desktop → workbench / client（传递：contracts / core）——① ledger / ④ exchange 随
+      # 交易/钱包页移除（2026-10-26），回归时把下面两段 checkout 加回
       - uses: actions/checkout@v4
         with:
           repository: AetherAxis/aether-workbench
@@ -36,14 +37,6 @@ jobs:
         with:
           repository: AetherAxis/ctp-net-core
           path: ctp-net-core
-      - uses: actions/checkout@v4
-        with:
-          repository: AetherAxis/aether-ledger
-          path: aether-ledger
-      - uses: actions/checkout@v4
-        with:
-          repository: AetherAxis/aether-exchange
-          path: aether-exchange
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -64,9 +57,9 @@ jobs:
         run: dotnet build aether-desktop.slnx -c Release
         working-directory: aether-desktop
 
-      # 纯逻辑面（不起窗口、不初始化 Avalonia 平台）：偏好存储（同步契约/坏档重建/跨实例持久化/
-      # 密码键可彻底删除）、连接预设档案（用户档优先/坏档回退内置/清单非空）、显示格式（方向/开平/
-      # 委托状态字符 → 中文，以契约为准）。控件与真实登录/下单仍靠实跑验收。
+      # 纯逻辑面（不起窗口、不初始化 Avalonia 平台）：偏好存储（同步契约/坏档重建/跨实例持久化）、
+      # 行情口径（涨跌基准回退/无值哨兵/变动次数）、主力合约目录（解析/规整/月均过滤/前置判据）。
+      # 控件与真实登录/订阅仍靠实跑验收。
       - name: Test
         run: dotnet test aether-desktop.slnx -c Release --no-build
         working-directory: aether-desktop
