@@ -54,7 +54,7 @@ dotnet run --project aether-desktop/src/Aether.Desktop
 | `MarketWatch/ManageProfilesDialog.axaml(.cs)` + `ManageProfilesViewModel.cs` | 「管理连接档案」模态对话框：档案 chips 选条目 → 全字段表单（副本编辑），保存 diff 落 ⑦ 凭据仓，取消丢弃 |
 | `MarketWatch/MainFuturesCatalog.cs` | 期货主力合约目录——客户端直爬东方财富 mk0830（Web 服务端 `SecuritySyncService` 的移植；代码规整 + 月均过滤 + sc→交易所），`NormalizeCode` 钉单测 |
 | `MarketWatch/MarketMath.cs` | 涨跌口径纯计算（昨结→昨收→首笔）+ 显示格式——被单测钉住 |
-| `MarketWatch/MarketWatchView.axaml` | 行情看板视图：订阅栏（连接档案 chips + 管理 ⚙ + 经纪商/用户/MD 密码 + 主力合约按钮）+ 口径条 + 十四列表格 |
+| `MarketWatch/MarketWatchView.axaml` | 行情看板视图：订阅栏（连接档案 chips + 管理 ⚙ + 品种 + 主力合约/订阅/断开——连接字段全在档案里，页面零散配置框已撤）+ 口径条 + 十四列表格 |
 
 ## 来历
 
