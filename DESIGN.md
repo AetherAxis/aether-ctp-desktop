@@ -221,3 +221,24 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 - **选中态持久化**：点 chip 只填地址（与手输同路），「订阅」时随 `market.mdFront` 落档——配置后保持最新。
 - **测试**：+6 例（MarketFrontPresetsTests：无档/坏 JSON/空数组回内置、用户档过滤与 trim、保存读取
   往返、空清单清键恢复默认）；60→66 例全绿。对话框交互面（模态/编辑/保存链）属 GUI 实跑验收。
+
+## 13. 本轮落地（2026-10-26）：连接管理对齐 monorepo 连接器——完整档案 + ⑦ 凭据仓
+
+- **用户纠偏**：「管理不仅仅是前置服务器，要把整个配置都可配置——参考 Aether 连接器中的期货连接。」
+  §12 的「前置清单」（仅名称+地址，存 preferences.json）当日重做。
+- **参照**：monorepo Stockapp `CtpConnectorViewModel`——档案 = 完整 `CtpConnectionConfig`（③ 契约现成），
+  存 `ICtpConfigStore`（⑦ SQLite 凭据仓，0600）；chip = 档案、点击 = 套用 + 连接；**连接即自动建档**
+  （键 = 前置 + 用户号，失败尝试也留档）；last-used 档案驱动启动恢复 + AutoLogin。
+- **移植取舍**：
+  - 键 = **行情前置** + 用户号（本 App 无交易腿；交易前置/AppId/授权码随档案留档——交易页回归时即用）。
+  - 密码存凭据仓（monorepo 同款；**preferences.json 仍绝不存密码**——DESIGN 的「密码不落盘」条款
+    精确化为「不落明文偏好」）。top bar 的 MD 密码框仍在（套档案带出/手改，连接即建档存回）。
+  - 冷启动自动订阅改由 last-used 档案的 AutoLogin 门控（内置档案默认开 = 旧行为不变）。
+  - 仓空播种内置三档案（本地/远程/SimNow，**各分配 Guid**——测试逮住过三档同 Guid.Empty 互踩）；
+    「管理」里全删光后重启恢复内置（与 §12 同语义）；旧 `market.*` 偏好一次性迁移（命中内置标
+    last-used，地址不在内置补「上次使用」档）。
+  - **自动爬主力的触发判据换端口族**：`MarketProfiles.IsSimFrontAddress`（任意 host 的 :17802 /
+    sim / 127.0.0.1:17800 = 仿真族；其余 = 真实柜台）——镜像 monorepo 连接器的 IsSimFront 判据，
+    用户自配的期货公司前置也自动走主力爬取（此前只认 SimNow 常量精确匹配）。
+- **测试**：+10 例（IsSimFrontAddress 端口族 11 断言 / 内置清单字段与 Guid 唯一 / 迁移三分支 /
+  档案名后缀 / 前置标签），66→76 例全绿；对话框与 chip 交互面属 GUI 实跑验收。

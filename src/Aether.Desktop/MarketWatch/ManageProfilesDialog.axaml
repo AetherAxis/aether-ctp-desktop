@@ -1,0 +1,104 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Aether.Desktop.MarketWatch.ManageProfilesDialog"
+        Title="管理连接档案"
+        Width="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="{DynamicResource ContentBgBrush}">
+
+  <Window.Styles>
+    <Style Selector="Button.chip">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.chip:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentTintBgBrush}" />
+    </Style>
+    <Style Selector="Button.chip.current">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="16,14">
+
+    <TextBlock Grid.Row="0" Text="连接档案（完整配置：前置 ×2 / 经纪商 / 用户号 / 密码 / AppId / 授权码）——点档案编辑，保存后持久化"
+               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+
+    <!-- 档案 chips：点击 = 选中编辑；＋ 新建；删 = 删选中 -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="4" Margin="0,0,0,10">
+      <ItemsControl ItemsSource="{Binding Entries}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="4"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Button Classes="chip" Content="{Binding Name}"
+                    Command="{Binding $parent[Window].DataContext.SelectCommand}"
+                    CommandParameter="{Binding}"
+                    ToolTip.Tip="{Binding MdFrontAddress}"/>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button Classes="chip" Content="＋ 新建" Command="{Binding AddCommand}"/>
+      <Button Classes="chip" Content="删选中" Command="{Binding RemoveSelectedCommand}"
+              ToolTip.Tip="删除当前编辑的档案（不影响正在跑的连接）"/>
+    </StackPanel>
+
+    <!-- 选中档案的完整表单（两向绑定编辑副本） -->
+    <Border Grid.Row="2" Padding="12,10" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+            CornerRadius="6" Background="{DynamicResource CardBgBrush}"
+            IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Grid ColumnDefinitions="90,*,90,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Grid.RowSpacing="8">
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="名称" FontSize="12" VerticalAlignment="Center"/>
+        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Selected.Name}" FontSize="12" Height="26"
+                 PlaceholderText="如：公司柜台（空则用用户号）"/>
+        <TextBlock Grid.Row="0" Grid.Column="2" Text="经纪商" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0"/>
+        <TextBox Grid.Row="0" Grid.Column="3" Text="{Binding Selected.BrokerId}" FontSize="12" Height="26" Margin="6,0,0,0"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="行情前置" FontSize="12" VerticalAlignment="Center"/>
+        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Selected.MdFrontAddress}" FontSize="12" Height="26"
+                 PlaceholderText="tcp://ip:port（本 App 的连接必需项）"/>
+        <TextBlock Grid.Row="1" Grid.Column="2" Text="用户号" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0"/>
+        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding Selected.UserId}" FontSize="12" Height="26" Margin="6,0,0,0"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="交易前置" FontSize="12" VerticalAlignment="Center"/>
+        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Selected.FrontAddress}" FontSize="12" Height="26"
+                 PlaceholderText="tcp://ip:port（本 App 暂不用，随档案留档）"/>
+        <TextBlock Grid.Row="2" Grid.Column="2" Text="密码" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0"/>
+        <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding Selected.Password}" PasswordChar="•" FontSize="12"
+                 Height="26" Margin="6,0,0,0"
+                 ToolTip.Tip="存 ⑦ 凭据仓（ctp.db，0600）——monorepo 连接器同款；preferences.json 仍绝不存密码"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="AppId" FontSize="12" VerticalAlignment="Center"/>
+        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Selected.AppId}" FontSize="12" Height="26"/>
+        <TextBlock Grid.Row="3" Grid.Column="2" Text="授权码" FontSize="12" VerticalAlignment="Center" Margin="10,0,0,0"/>
+        <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding Selected.AuthCode}" FontSize="12" Height="26" Margin="6,0,0,0"/>
+
+        <CheckBox Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="4" Content="启动时自动连接（按 last-used 档案恢复并订阅）"
+                  IsChecked="{Binding Selected.AutoLogin}" FontSize="12"/>
+      </Grid>
+    </Border>
+
+    <!-- 底栏 -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Bottom" Margin="0,12,0,0">
+      <TextBlock Grid.Column="0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Opacity="0.8"
+                 TextWrapping="Wrap" VerticalAlignment="Center"
+                 Text="行情前置为空的条目保存时被过滤；全部删光后重启 = 恢复内置（本地/远程/SimNow）。连接成功也会自动建档（键 = 行情前置 + 用户号）。"/>
+      <Button Grid.Column="1" Content="取消" FontSize="12" Padding="14,4"
+              Command="{Binding CancelCommand}"/>
+      <Button Grid.Column="2" Classes="primary" Content="保存" FontSize="12" Padding="14,4" Margin="8,0,0,0"
+              Command="{Binding SaveCommand}"/>
+    </Grid>
+  </Grid>
+</Window>

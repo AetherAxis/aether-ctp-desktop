@@ -108,16 +108,20 @@ public class MainFuturesCatalogTests
         await Assert.ThrowsAsync<HttpRequestException>(() => catalog.FetchAsync());
     }
 
-    [Fact]
-    public void 真实前置判据_按地址精确匹配()
-    {
-        Assert.True(MarketWatchViewModel.IsRealFrontAddress(MainFuturesCatalog.SimNowMdFront));
-        Assert.True(MarketWatchViewModel.IsRealFrontAddress(" tcp://182.254.243.31:40011 "));
-        Assert.False(MarketWatchViewModel.IsRealFrontAddress(MarketWatchViewModel.LocalMdFront));
-        Assert.False(MarketWatchViewModel.IsRealFrontAddress(MarketWatchViewModel.RemoteMdFront));
-        Assert.False(MarketWatchViewModel.IsRealFrontAddress(null));
-        Assert.False(MarketWatchViewModel.IsRealFrontAddress(""));
-    }
+    [Theory]
+    [InlineData("tcp://182.254.243.31:40011", false)]   // SimNow 行情腿 = 真实柜台（自动爬主力触发面）
+    [InlineData("tcp://1.2.3.4:41205", false)]          // 用户自配的期货公司柜台 = 真实柜台
+    [InlineData("tcp://127.0.0.1:17802", true)]         // 本地前置 = 仿真族（:17802 行情腿端口判据）
+    [InlineData("tcp://117.72.186.128:17802", true)]    // 远程服务器前置 = 仿真族（同端口判据，不分 host）
+    [InlineData("tcp://localhost:17802", true)]         // localhost 容忍
+    [InlineData("17802", false)]                         // 无 host 的裸端口不是地址形态——不判仿真
+    [InlineData("sim", true)]                            // 旧 sim 关键字
+    [InlineData("127.0.0.1:17800", true)]                // 旧 JSON-RPC 形态
+    [InlineData("tcp://127.0.0.1:17801", false)]         // 交易腿端口不是行情腿——不按仿真行情前置算
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void 仿真前置判据_按端口族判定(string? mdFront, bool expectedSim) =>
+        Assert.Equal(expectedSim, MarketProfiles.IsSimFrontAddress(mdFront));
 
     [Theory]
     [InlineData("ax001", true)]

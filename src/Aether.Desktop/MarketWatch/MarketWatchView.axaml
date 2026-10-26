@@ -39,9 +39,9 @@
         <TextBox Grid.Column="1" Text="{Binding MdFront}" FontSize="12" Height="28"
                  PlaceholderText="tcp://117.72.186.128:17802" Margin="8,0,0,0"/>
 
-        <!-- 前置清单 chips（可配置：「管理」对话框增删改，保存即持久化；本地/远程/SimNow 为内置兜底） -->
+        <!-- 连接档案 chips（完整配置：点 chip 套用全部连接字段并直接订阅；「管理」对话框增删改） -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
-          <ItemsControl ItemsSource="{Binding Fronts}">
+          <ItemsControl ItemsSource="{Binding Profiles}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <StackPanel Orientation="Horizontal" Spacing="4"/>
@@ -51,15 +51,15 @@
               <DataTemplate>
                 <Button Classes="chip" Content="{Binding Name}"
                         Classes.current="{Binding IsCurrent}"
-                        Command="{Binding $parent[UserControl].DataContext.UseFrontCommand}"
+                        Command="{Binding $parent[UserControl].DataContext.UseProfileCommand}"
                         CommandParameter="{Binding}"
-                        ToolTip.Tip="{Binding MdFront}"/>
+                        ToolTip.Tip="{Binding Name}"/>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
           <Button Classes="chip" Content="管理 ⚙" Margin="4,0,0,0"
-                  Command="{Binding ManageFrontsCommand}"
-                  ToolTip.Tip="配置前置清单（增删改，保存后持久化并保持最新；全部删光 = 恢复内置）"/>
+                  Command="{Binding ManageProfilesCommand}"
+                  ToolTip.Tip="管理连接档案（前置×2/经纪商/用户/密码/AppId/授权码——增删改，保存后持久化并保持最新；全部删光后重启 = 恢复内置）"/>
         </StackPanel>
 
         <TextBlock Grid.Column="3" Text="经纪商" FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"

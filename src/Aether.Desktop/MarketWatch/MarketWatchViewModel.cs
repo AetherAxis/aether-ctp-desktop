@@ -71,6 +71,7 @@ public partial class MarketWatchViewModel : ObservableObject
     private readonly ICtpSession _session;
     private readonly IPreferencesStore _preferences;
     private readonly MainFuturesCatalog _mainFutures;
+    private readonly ICtpConfigStore _configStore;
     private readonly Dictionary<string, QuoteRow> _rowsByInstrument = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>爬取到的主力合约中文名（代码 → 名称）——看板「名称」列的数据源；手输品种查不到就留空。</summary>
     private Dictionary<string, string> _namesByInstrument = new(StringComparer.OrdinalIgnoreCase);
@@ -79,19 +80,19 @@ public partial class MarketWatchViewModel : ObservableObject
 
     private DateTime _lastTickAt = DateTime.MinValue;
 
-    public MarketWatchViewModel(ICtpSession session, MainFuturesCatalog mainFutures, IPreferencesStore preferences)
+    public MarketWatchViewModel(ICtpSession session, MainFuturesCatalog mainFutures,
+        ICtpConfigStore configStore, IPreferencesStore preferences)
     {
         _session = session;
         _mainFutures = mainFutures;
+        _configStore = configStore;
         _preferences = preferences;
 
-        // 启动同步恢复上次的订阅档案（与连接器同款：GetAsync 同步完成）
-        MdFront = _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult() ?? LocalMdFront;
-        Broker = _preferences.GetAsync(PrefBroker).GetAwaiter().GetResult() ?? "9999";
-        User = _preferences.GetAsync(PrefUser).GetAwaiter().GetResult() ?? "watching";
+        // 订阅品种仍走偏好（连接配置已迁 ⑦ 凭据仓——见 InitializeConnection）
         SymbolInput = _preferences.GetAsync(PrefSymbols).GetAwaiter().GetResult() ?? DefaultSymbols;
 
-        LoadFronts();   // 前置清单：用户档（market.fronts）优先，回退内置本地/远程/SimNow
+        // 连接配置恢复：last-used 档案（仓空时播种内置 + 旧偏好一次性迁移）；AutoLogin 旗标决定冷启动是否自动订阅
+        var autoConnect = InitializeConnection();
 
         SyncRows(SplitSymbols(SymbolInput));
 
@@ -101,8 +102,53 @@ public partial class MarketWatchViewModel : ObservableObject
         _pulse.Tick += (_, _) => UpdatePulse();
         _pulse.Start();
 
-        // 冷启动即订阅：行情腿不需要账号密码，打开就该看到 tick（连不上时状态栏会说话）
-        _ = SubscribeAsync();
+        // 冷启动即订阅：行情腿不需要账号密码，打开就该看到 tick（连不上时状态栏会说话）；
+        // last-used 档案关了「启动自动连接」则等用户点「订阅」
+        if (autoConnect)
+            _ = SubscribeAsync();
+    }
+
+    /// <summary>
+    /// 连接配置恢复（构造期同步完成）：仓空 → 播种内置档案（本地/远程/SimNow）+ 旧 market.* 偏好一次性迁移
+    /// （命中内置标 last-used，地址不在内置里补「上次使用」档）；再按 last-used 恢复表单（行情前置/经纪商/
+    /// 用户号/密码）。返回是否启动自动连接（= last-used 档案的 AutoLogin；无档案默认开——保持旧行为）。
+    /// </summary>
+    private bool InitializeConnection()
+    {
+        var profiles = _configStore.GetAllAsync().GetAwaiter().GetResult();
+        if (profiles.Count == 0)
+        {
+            var seeded = MarketProfiles.BuiltIns();
+            var lastUsed = MarketProfiles.PickLastUsed(seeded,
+                _preferences.GetAsync(PrefMdFront).GetAwaiter().GetResult(),
+                _preferences.GetAsync(PrefBroker).GetAwaiter().GetResult(),
+                _preferences.GetAsync(PrefUser).GetAwaiter().GetResult());
+            foreach (var p in seeded)
+                _configStore.SaveAsync(p).GetAwaiter().GetResult();
+            if (lastUsed is not null)
+            {
+                lastUsed.IsLastUsed = true;   // SaveAsync 事务内清其它行旗标（契约唯一性不变量）
+                _configStore.SaveAsync(lastUsed).GetAwaiter().GetResult();
+            }
+            profiles = _configStore.GetAllAsync().GetAwaiter().GetResult();
+        }
+
+        var cfg = _configStore.GetAsync().GetAwaiter().GetResult();
+        if (cfg is not null)
+        {
+            MdFront = cfg.MdFrontAddress.Length > 0 ? cfg.MdFrontAddress : LocalMdFront;
+            Broker = cfg.BrokerId.Length > 0 ? cfg.BrokerId : "9999";
+            User = cfg.UserId.Length > 0 ? cfg.UserId : "watching";
+            MdPassword = cfg.Password;
+        }
+        else
+        {
+            MdFront = LocalMdFront;
+            Broker = "9999";
+            User = "watching";
+        }
+        RefreshChips();
+        return cfg?.AutoLogin ?? true;
     }
 
     // ── 订阅档案（界面绑定） ──
@@ -111,9 +157,10 @@ public partial class MarketWatchViewModel : ObservableObject
     [ObservableProperty] private string _broker = "9999";
     [ObservableProperty] private string _user = "watching";
     /// <summary>
-    /// MD 密码（可选）：本前置与 SimNow 的 MD 腿都不校验（SimNow 2026-10-25 实证：watching+空密码
-    /// 登录/订阅/87 合约 tick 流全通）——**SimNow 留空即可**。其它真实前置（期货公司柜台）通常校验，
-    /// 框留着给那类前置。**会话内存而已，绝不落盘**（与连接器「密码不落盘」同政策）。
+    /// MD 密码：本前置与 SimNow 的 MD 腿都不校验（SimNow 2026-10-25 实证：watching+空密码
+    /// 登录/订阅/87 合约 tick 流全通）——**SimNow 留空即可**；其它真实前置（期货公司柜台）通常校验。
+    /// **随连接档案存 ⑦ 凭据仓（ctp.db，0600）**——monorepo 连接器同款（「连接即建档」一并存）；
+    /// preferences.json 仍绝不存密码。
     /// </summary>
     [ObservableProperty] private string _mdPassword = "";
     /// <summary>订阅品种（逗号分隔）。点「订阅」时整表替换看板行。</summary>
@@ -160,10 +207,11 @@ public partial class MarketWatchViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            // 真实前置 + 仿真默认品种 ⇒ 直接爬主力合约（ax001 在真实柜台不存在，订阅了也永远静默）。
+            // 真实柜台（非我们的仿真部署族——见 MarketProfiles.IsSimFrontAddress 的端口判据）+ 仿真默认品种
+            // ⇒ 直接爬主力合约（ax001 在真实柜台不存在，订阅了也永远静默）。
             // 用户手输过品种（≠ ax001 默认）则尊重输入——那是明确的订阅意图。
             var fromCrawl = false;
-            if (IsRealFrontAddress(MdFront) && IsSimOnlyBoard(symbols))
+            if (!MarketProfiles.IsSimFrontAddress(MdFront) && IsSimOnlyBoard(symbols))
             {
                 try
                 {
@@ -229,27 +277,28 @@ public partial class MarketWatchViewModel : ObservableObject
         }
     }
 
-    /// <summary>订阅核心（命令共用，<b>不管理 <see cref="IsBusy"/></b>——由各命令包持）：铺看板行 → 落偏好（爬取来源不落品种档）→ 连 MD 订阅 → 回放会话缓存。</summary>
+    /// <summary>订阅核心（命令共用，<b>不管理 <see cref="IsBusy"/></b>——由各命令包持）：铺看板行 → 落品种偏好（爬取来源不落）→ 连 MD 订阅 → 连接即建档 → 回放会话缓存。</summary>
     private async Task SubscribeSymbolsAsync(IReadOnlyList<string> symbols, bool fromCrawl)
     {
         StatusText = fromCrawl ? $"订阅中：主力合约 {symbols.Count} 个…" : $"订阅中：{string.Join(",", symbols)}…";
         try
         {
             SyncRows(symbols);
-            await _preferences.SetAsync(PrefMdFront, MdFront.Trim());
-            // 爬取来的品种不落档：主力按月换约，存档跨月即过期；下次连真实前置重新现爬
+            // 爬取来的品种不落档：主力按月换约，存档跨月即过期；下次连真实柜台重新现爬。
+            // 连接配置不落偏好——归 ⑦ 凭据仓（连接即建档，见下方 SaveProfileOnConnect）。
             if (!fromCrawl)
                 await _preferences.SetAsync(PrefSymbols, string.Join(",", symbols));
-            await _preferences.SetAsync(PrefBroker, Broker.Trim());
-            await _preferences.SetAsync(PrefUser, User.Trim());
 
             await _session.SubscribeMarketDataAsync(new CtpMarketDataConnect
             {
                 MdFrontAddress = MdFront.Trim(),
                 BrokerId = string.IsNullOrWhiteSpace(Broker) ? "9999" : Broker.Trim(),
                 UserId = string.IsNullOrWhiteSpace(User) ? "watching" : User.Trim(),
-                Password = MdPassword,   // 本前置与 SimNow MD 均不校验（SimNow 实证可空）；其它真实前置需要——不落盘，现填
+                Password = MdPassword,   // 本前置与 SimNow MD 均不校验（SimNow 实证可空）；其它真实前置需要
             }, symbols);
+
+            // 连接即自动建档（monorepo 连接器语义：键 = 行情前置 + 用户号，失败尝试也留档——误档可在「管理」里删）
+            await SaveProfileOnConnectAsync();
 
             // 会话缓存里可能已有这些合约的 tick（重订阅/切页后立刻有数，不用等下一拍）
             foreach (var (instrument, tick) in _session.GetAllLatestTicks())
@@ -265,6 +314,41 @@ public partial class MarketWatchViewModel : ObservableObject
         {
             IsSubscribed = _session.IsMdSubscribed;
             StatusText = $"行情订阅失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>连接即建档：当前表单值 upsert 成 last-used 档案（命中「行情前置 + 用户号」复用 Id 与交易侧字段）。</summary>
+    private async Task SaveProfileOnConnectAsync()
+    {
+        try
+        {
+            var mdFront = MdFront.Trim();
+            var user = (string.IsNullOrWhiteSpace(User) ? "watching" : User).Trim();
+            var profiles = await _configStore.GetAllAsync();
+            var existing = profiles.FirstOrDefault(p =>
+                string.Equals(p.MdFrontAddress.Trim(), mdFront, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(p.UserId.Trim(), user, StringComparison.OrdinalIgnoreCase));
+
+            var name = existing?.Name ?? MarketProfiles.BuildProfileName(profiles, Guid.Empty, user, mdFront);
+            await _configStore.SaveAsync(new CtpConnectionConfig
+            {
+                Id = existing?.Id ?? Guid.NewGuid(),
+                Name = name,
+                FrontAddress = existing?.FrontAddress ?? "",
+                MdFrontAddress = mdFront,
+                BrokerId = (string.IsNullOrWhiteSpace(Broker) ? "9999" : Broker).Trim(),
+                UserId = user,
+                Password = MdPassword,
+                AppId = existing?.AppId ?? "simnow_client_test",
+                AuthCode = existing?.AuthCode ?? "0000000000000000",
+                AutoLogin = existing?.AutoLogin ?? true,
+                IsLastUsed = true,   // SaveAsync 事务内清其它行旗标（契约唯一性不变量）
+            });
+            RefreshChips();
+        }
+        catch
+        {
+            /* 建档失败不阻断行情——chip 少一条而已，下次连接重试 */
         }
     }
 
@@ -289,65 +373,84 @@ public partial class MarketWatchViewModel : ObservableObject
         UpdatePulse();
     }
 
-    // ── 前置清单（可配置：用户档案优先，内置兜底——见 MarketFrontPresets） ──
+    // ── 连接档案（完整配置：⑦ 凭据仓 CtpConnectionConfig，chips = 档案） ──
 
-    /// <summary>前置 chip 数据源（名称 → 地址）。「管理」对话框保存后即时重载并持久化。</summary>
-    public ObservableCollection<MarketFront> Fronts { get; } = new();
+    /// <summary>连接档案 chips（名称 → 完整配置）。点 chip = 套用全部连接字段并直接订阅（monorepo 连接器语义）。</summary>
+    public ObservableCollection<ProfileChip> Profiles { get; } = new();
 
-    private void LoadFronts()
-    {
-        Fronts.Clear();
-        foreach (var f in MarketFrontPresets.Load(_preferences))
-            Fronts.Add(f);
-        UpdateCurrentChip();
-    }
+    /// <summary>当前 <see cref="MdFront"/> 变化 → 重建 chips（高亮 = 地址匹配的档案）。</summary>
+    partial void OnMdFrontChanged(string value) => RefreshChips();
 
-    /// <summary>当前 <see cref="MdFront"/> 变化 → 重算各 chip 的 IsCurrent 高亮（按地址匹配）。</summary>
-    partial void OnMdFrontChanged(string value) => UpdateCurrentChip();
-
-    private void UpdateCurrentChip()
+    private void RefreshChips()
     {
         var current = (MdFront ?? "").Trim();
-        foreach (var f in Fronts)
-            f.IsCurrent = current.Length > 0 && string.Equals(current, f.MdFront.Trim(), StringComparison.OrdinalIgnoreCase);
+        Profiles.Clear();
+        foreach (var p in _configStore.GetAllAsync().GetAwaiter().GetResult())
+            Profiles.Add(new ProfileChip
+            {
+                Id = p.Id,
+                Name = string.IsNullOrWhiteSpace(p.Name) ? p.UserId : p.Name,
+                IsCurrent = current.Length > 0 && string.Equals(current, p.MdFrontAddress.Trim(), StringComparison.OrdinalIgnoreCase),
+            });
     }
 
-    /// <summary>点前置 chip = 填入地址（订阅动作归「订阅」按钮——与手输地址同一条路）。</summary>
+    /// <summary>点档案 chip = 套用完整连接配置（行情前置/经纪商/用户号/密码）+ 标 last-used + 直接订阅。</summary>
     [RelayCommand]
-    private void UseFront(MarketFront? front)
+    private async Task UseProfileAsync(ProfileChip? chip)
     {
-        if (front is not null && !string.IsNullOrWhiteSpace(front.MdFront))
-            MdFront = front.MdFront;
+        if (chip is null || IsBusy) return;
+        var cfg = _configStore.GetAllAsync().GetAwaiter().GetResult()
+            .FirstOrDefault(p => p.Id == chip.Id);
+        if (cfg is null) return;   // chips 刚重建的极端时序——静默跳过
+
+        MdFront = cfg.MdFrontAddress;
+        Broker = cfg.BrokerId;
+        User = cfg.UserId;
+        MdPassword = cfg.Password;
+
+        cfg.IsLastUsed = true;
+        await _configStore.SaveAsync(cfg);
+        RefreshChips();
+
+        await SubscribeAsync();
     }
 
-    /// <summary>打开「管理行情前置」对话框：编辑副本，保存后落档 + 重载 chip（保持最新配置）。</summary>
+    /// <summary>打开「管理连接档案」对话框：完整配置（前置×2/经纪商/用户/密码/AppId/授权码/AutoLogin）增删改，保存后持久化并保持最新。</summary>
     [RelayCommand]
-    private async Task ManageFrontsAsync()
+    private async Task ManageProfilesAsync()
     {
         var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
         if (owner is null) return;
 
-        var vm = new ManageFrontsViewModel(Fronts);
-        var dialog = new ManageFrontsDialog { DataContext = vm };
+        var before = _configStore.GetAllAsync().GetAwaiter().GetResult();
+        var vm = new ManageProfilesViewModel(before);
+        var dialog = new ManageProfilesDialog { DataContext = vm };
         vm.CloseRequested += dialog.Close;
         await dialog.ShowDialog(owner);
         vm.CloseRequested -= dialog.Close;
 
         if (!vm.Saved) return;   // 取消/关窗：改动丢弃
 
-        var fronts = vm.ToFronts();
-        MarketFrontPresets.Save(_preferences, fronts);
-        LoadFronts();   // 空清单 → Save 清键 → Load 回内置三个
-        StatusText = fronts.Count > 0
-            ? $"前置清单已保存（{fronts.Count} 个）"
-            : "前置清单已清空——恢复内置（本地/远程/SimNow）";
+        // diff 落档：删除的删掉，其余 upsert；last-used 尽量保住（被删则标第一条，仓空留空 = 下次启动播种内置）
+        var after = vm.ToValidEntries();
+        var afterIds = after.Select(e => e.Id).ToHashSet();
+        foreach (var removed in before.Where(p => !afterIds.Contains(p.Id)))
+            await _configStore.DeleteAsync(removed.Id);
+
+        Guid? lastUsedId = before.FirstOrDefault(p => p.IsLastUsed)?.Id;
+        var keepLastUsed = lastUsedId.HasValue && after.Any(e => e.Id == lastUsedId);
+        foreach (var entry in after)
+            await _configStore.SaveAsync(entry.ToConfig(isLastUsed: keepLastUsed && lastUsedId == entry.Id));
+        if (!keepLastUsed && after.Count > 0)
+            await _configStore.SaveAsync(after[0].ToConfig(isLastUsed: true));
+
+        RefreshChips();
+        StatusText = after.Count > 0
+            ? $"连接档案已保存（{after.Count} 个）"
+            : "连接档案已清空——重启后恢复内置（本地/远程/SimNow）";
     }
 
     // ── 前置/品种判定 ──
-
-    /// <summary>是否真实前置（SimNow 行情腿）。地址完全匹配才判真——我们自己的仿真前置（本地/远程）各有专属地址。</summary>
-    internal static bool IsRealFrontAddress(string? mdFront) =>
-        string.Equals((mdFront ?? "").Trim(), RealMdFront, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>看板品种是否还是仿真默认（ax001 一族）——真实前置上这些代码不存在，才轮到自动爬主力替换。</summary>
     internal static bool IsSimOnlyBoard(IReadOnlyList<string> symbols) =>
