@@ -22,52 +22,73 @@
     <Style Selector="Button.chip:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource AccentTintBgBrush}" />
     </Style>
+    <Style Selector="Button.chip.current">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,Auto,Auto,*" Background="{DynamicResource ContentBgBrush}">
 
-    <!-- ═══ 订阅栏：MD 前置 / 凭据（本前置可空）/ 品种 / 订阅 ═══ -->
+    <!-- ═══ 订阅栏：MD 前置（可配置清单 + 管理）/ 凭据（本前置可空）/ 品种 / 订阅 ═══ -->
     <Border Grid.Row="0" Padding="12,8" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="Auto,220,Auto,Auto,Auto,Auto,Auto,70,Auto,100,Auto,60,Auto,150,Auto,Auto,Auto,Auto,*">
+      <Grid ColumnDefinitions="Auto,220,Auto,Auto,Auto,Auto,70,Auto,100,Auto,60,Auto,150,Auto,Auto,Auto,Auto,*">
         <TextBlock Grid.Column="0" Text="行情前置" FontSize="12" VerticalAlignment="Center"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
         <TextBox Grid.Column="1" Text="{Binding MdFront}" FontSize="12" Height="28"
                  PlaceholderText="tcp://117.72.186.128:17802" Margin="8,0,0,0"/>
-        <Button Grid.Column="2" Classes="chip" Content="远程" Margin="6,0,0,0"
-                Command="{Binding UseRemoteCommand}" ToolTip.Tip="服务器上已部署的交易所+前置"/>
-        <Button Grid.Column="3" Classes="chip" Content="本地" Margin="4,0,0,0"
-                Command="{Binding UseLocalCommand}" ToolTip.Tip="本地开发态前置（交易所仍指远程）"/>
-        <Button Grid.Column="4" Classes="chip" Content="SimNow" Margin="4,0,0,0"
-                Command="{Binding UseRealCommand}"
-                ToolTip.Tip="SimNow 真实行情前置——订阅面自动切换为爬取的期货主力合约（MD 实测免凭据，用户/密码随意）"/>
 
-        <TextBlock Grid.Column="5" Text="经纪商" FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"
-                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-        <TextBox Grid.Column="6" Text="{Binding Broker}" FontSize="12" Height="28" Margin="6,0,0,0"/>
+        <!-- 前置清单 chips（可配置：「管理」对话框增删改，保存即持久化；本地/远程/SimNow 为内置兜底） -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
+          <ItemsControl ItemsSource="{Binding Fronts}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="4"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Button Classes="chip" Content="{Binding Name}"
+                        Classes.current="{Binding IsCurrent}"
+                        Command="{Binding $parent[UserControl].DataContext.UseFrontCommand}"
+                        CommandParameter="{Binding}"
+                        ToolTip.Tip="{Binding MdFront}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button Classes="chip" Content="管理 ⚙" Margin="4,0,0,0"
+                  Command="{Binding ManageFrontsCommand}"
+                  ToolTip.Tip="配置前置清单（增删改，保存后持久化并保持最新；全部删光 = 恢复内置）"/>
+        </StackPanel>
 
-        <TextBlock Grid.Column="7" Text="用户" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
+        <TextBlock Grid.Column="3" Text="经纪商" FontSize="12" VerticalAlignment="Center" Margin="14,0,0,0"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
-        <TextBox Grid.Column="8" Text="{Binding User}" FontSize="12" Height="28" Margin="6,0,0,0"/>
+        <TextBox Grid.Column="4" Text="{Binding Broker}" FontSize="12" Height="28" Margin="6,0,0,0"/>
 
-        <TextBlock Grid.Column="9" Text="MD 密码" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
+        <TextBlock Grid.Column="5" Text="用户" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
-        <TextBox Grid.Column="10" Text="{Binding MdPassword}" FontSize="12" Height="28" Margin="6,0,0,0"
+        <TextBox Grid.Column="6" Text="{Binding User}" FontSize="12" Height="28" Margin="6,0,0,0"/>
+
+        <TextBlock Grid.Column="7" Text="MD 密码" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
+                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+        <TextBox Grid.Column="8" Text="{Binding MdPassword}" FontSize="12" Height="28" Margin="6,0,0,0"
                  PasswordChar="•" PlaceholderText="SimNow 可空"
                  ToolTip.Tip="本前置与 SimNow 的 MD 腿都不校验（SimNow 实测空密码可用）；其它真实前置需要。会话内存——绝不落盘"/>
 
-        <TextBlock Grid.Column="11" Text="品种" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
+        <TextBlock Grid.Column="9" Text="品种" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
-        <TextBox Grid.Column="12" Text="{Binding SymbolInput}" FontSize="12" Height="28" Margin="6,0,0,0"
+        <TextBox Grid.Column="10" Text="{Binding SymbolInput}" FontSize="12" Height="28" Margin="6,0,0,0"
                  PlaceholderText="ax001, IF2612"/>
 
-        <Button Grid.Column="13" Classes="chip" Content="主力合约" Margin="8,0,0,0"
+        <Button Grid.Column="11" Classes="chip" Content="主力合约" Margin="8,0,0,0"
                 Command="{Binding MainFuturesCommand}"
                 ToolTip.Tip="直接爬东方财富期货主力板块（一品种一条）并整表订阅；连 SimNow 前置时也会自动走这条路"/>
-        <Button Grid.Column="14" Content="订阅" Margin="8,0,0,0" Padding="14,4" FontSize="12"
+        <Button Grid.Column="12" Content="订阅" Margin="8,0,0,0" Padding="14,4" FontSize="12"
                 Command="{Binding SubscribeCommand}" ToolTip.Tip="连行情前置并订阅（本前置 MD 免凭据）"/>
-        <Button Grid.Column="15" Content="断开" Margin="6,0,0,0" Padding="12,4" FontSize="12"
+        <Button Grid.Column="13" Content="断开" Margin="6,0,0,0" Padding="12,4" FontSize="12"
                 Command="{Binding DisconnectCommand}"/>
-        <TextBlock Grid.Column="16" Text="{Binding StatusText}" Margin="12,0,0,0" FontSize="11"
+        <TextBlock Grid.Column="14" Text="{Binding StatusText}" Margin="12,0,0,0" FontSize="11"
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                    Foreground="{DynamicResource TextSecondaryBrush}"/>
       </Grid>

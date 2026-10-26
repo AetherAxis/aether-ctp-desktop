@@ -4,6 +4,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Aether.Workbench;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -87,6 +90,8 @@ public partial class MarketWatchViewModel : ObservableObject
         Broker = _preferences.GetAsync(PrefBroker).GetAwaiter().GetResult() ?? "9999";
         User = _preferences.GetAsync(PrefUser).GetAwaiter().GetResult() ?? "watching";
         SymbolInput = _preferences.GetAsync(PrefSymbols).GetAwaiter().GetResult() ?? DefaultSymbols;
+
+        LoadFronts();   // 前置清单：用户档（market.fronts）优先，回退内置本地/远程/SimNow
 
         SyncRows(SplitSymbols(SymbolInput));
 
@@ -284,17 +289,59 @@ public partial class MarketWatchViewModel : ObservableObject
         UpdatePulse();
     }
 
-    /// <summary>一键切远程前置（服务器上已部署的那套）。</summary>
-    [RelayCommand]
-    private void UseRemote() => MdFront = RemoteMdFront;
+    // ── 前置清单（可配置：用户档案优先，内置兜底——见 MarketFrontPresets） ──
 
-    /// <summary>一键切本地前置（本地开发态：前置在本机、交易所仍指远程）。</summary>
-    [RelayCommand]
-    private void UseLocal() => MdFront = LocalMdFront;
+    /// <summary>前置 chip 数据源（名称 → 地址）。「管理」对话框保存后即时重载并持久化。</summary>
+    public ObservableCollection<MarketFront> Fronts { get; } = new();
 
-    /// <summary>一键切真实前置（SimNow 行情腿——订阅面自动爬主力合约目录）。</summary>
+    private void LoadFronts()
+    {
+        Fronts.Clear();
+        foreach (var f in MarketFrontPresets.Load(_preferences))
+            Fronts.Add(f);
+        UpdateCurrentChip();
+    }
+
+    /// <summary>当前 <see cref="MdFront"/> 变化 → 重算各 chip 的 IsCurrent 高亮（按地址匹配）。</summary>
+    partial void OnMdFrontChanged(string value) => UpdateCurrentChip();
+
+    private void UpdateCurrentChip()
+    {
+        var current = (MdFront ?? "").Trim();
+        foreach (var f in Fronts)
+            f.IsCurrent = current.Length > 0 && string.Equals(current, f.MdFront.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>点前置 chip = 填入地址（订阅动作归「订阅」按钮——与手输地址同一条路）。</summary>
     [RelayCommand]
-    private void UseReal() => MdFront = RealMdFront;
+    private void UseFront(MarketFront? front)
+    {
+        if (front is not null && !string.IsNullOrWhiteSpace(front.MdFront))
+            MdFront = front.MdFront;
+    }
+
+    /// <summary>打开「管理行情前置」对话框：编辑副本，保存后落档 + 重载 chip（保持最新配置）。</summary>
+    [RelayCommand]
+    private async Task ManageFrontsAsync()
+    {
+        var owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+        if (owner is null) return;
+
+        var vm = new ManageFrontsViewModel(Fronts);
+        var dialog = new ManageFrontsDialog { DataContext = vm };
+        vm.CloseRequested += dialog.Close;
+        await dialog.ShowDialog(owner);
+        vm.CloseRequested -= dialog.Close;
+
+        if (!vm.Saved) return;   // 取消/关窗：改动丢弃
+
+        var fronts = vm.ToFronts();
+        MarketFrontPresets.Save(_preferences, fronts);
+        LoadFronts();   // 空清单 → Save 清键 → Load 回内置三个
+        StatusText = fronts.Count > 0
+            ? $"前置清单已保存（{fronts.Count} 个）"
+            : "前置清单已清空——恢复内置（本地/远程/SimNow）";
+    }
 
     // ── 前置/品种判定 ──
 

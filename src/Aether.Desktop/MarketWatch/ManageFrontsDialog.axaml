@@ -1,0 +1,61 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Aether.Desktop.MarketWatch.ManageFrontsDialog"
+        Title="管理行情前置"
+        Width="520" MinHeight="300" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        Background="{DynamicResource ContentBgBrush}">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="16,14">
+
+    <TextBlock Grid.Row="0" Text="行情前置清单（chip 的来源；保存后立即生效并持久化）"
+               FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+
+    <Grid Grid.Row="1" RowDefinitions="Auto,*">
+      <Border Grid.Row="0" Padding="8,5" BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="0,0,0,1" Background="{DynamicResource CardBgBrush}">
+        <Grid ColumnDefinitions="120,*,Auto">
+          <TextBlock Text="名称" FontSize="11" FontWeight="SemiBold"/>
+          <TextBlock Grid.Column="1" Text="前置地址（tcp://host:port）" FontSize="11" FontWeight="SemiBold"/>
+          <TextBlock Grid.Column="2" Text=" " Width="60"/>
+        </Grid>
+      </Border>
+      <ScrollViewer Grid.Row="1" MinHeight="140">
+        <ItemsControl ItemsSource="{Binding Entries}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Grid ColumnDefinitions="120,*,Auto" Margin="0,4,0,0">
+                <TextBox Text="{Binding Name}" FontSize="12" Height="26"
+                         PlaceholderText="如：公司柜台"/>
+                <TextBox Grid.Column="1" Text="{Binding MdFront}" FontSize="12" Height="26" Margin="6,0,0,0"
+                         PlaceholderText="tcp://ip:port"/>
+                <Button Grid.Column="2" Classes="rowdel" Content="删" Margin="6,0,0,0" Width="60" Height="26"
+                        Command="{Binding $parent[Window].DataContext.RemoveCommand}"
+                        CommandParameter="{Binding}"/>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
+      <Button Grid.Column="0" Content="＋ 添加" FontSize="12" Padding="10,4"
+              Command="{Binding AddCommand}"/>
+      <TextBlock Grid.Column="1" Text="空名/空址条目保存时被过滤；全部删光 = 恢复内置（本地/远程/SimNow）"
+                 FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" Opacity="0.8"
+                 VerticalAlignment="Center" Margin="10,0,0,0" TextWrapping="Wrap"/>
+      <Button Grid.Column="2" Content="取消" FontSize="12" Padding="14,4"
+              Command="{Binding CancelCommand}"/>
+      <Button Grid.Column="3" Classes="primary" Content="保存" FontSize="12" Padding="14,4" Margin="8,0,0,0"
+              Command="{Binding SaveCommand}"/>
+    </Grid>
+  </Grid>
+
+  <Window.Styles>
+    <Style Selector="Button.rowdel">
+      <Setter Property="Foreground" Value="#E5484D"/>
+    </Style>
+  </Window.Styles>
+</Window>

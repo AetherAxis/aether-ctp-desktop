@@ -206,3 +206,18 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 - **ICtpSession 单消费者**：行情页是 App 里唯一的 session 消费者——共享 MD 连接的时序问题
   （§3.6 记过的「互抢/静默」）在这个形态下不存在。
 - **实测启动**：单 tab 布局冷启动直连远程前置出数正常（旧三 tab 布局档被 ⑩ 容错恢复）。
+
+## 12. 本轮落地（2026-10-26）：前置清单可配置——管理对话框 + 持久化
+
+- **用户诉求**：「连接选择需要弄成配置的，比如弹出对话框，然后配置后会保持最新配置。」
+- **模型**（`MarketFronts.cs`）：chip 数据源 = `MarketFront {Name, MdFront, IsCurrent}`；
+  档案键 `market.fronts`（JSON `[{name, mdFront}]`）。**用户档优先，内置兜底**（本地/远程/SimNow
+  原值——同此前写死的三个 chip）；无档/坏 JSON/过滤后为空一律回内置（清单永不为空）；
+  保存空清单 = 清键 = 恢复默认（对话框里明示）。与旧 ConnectionPresets 同一套回退语义。
+- **对话框**（`ManageFrontsDialog`）：模态 Window 编辑**副本**（`FrontEntry` 增删改）；「保存」→ VM 落档 +
+  重载 chips + 状态栏确认；取消/关窗丢弃。VM 不持窗口引用——关窗经 `CloseRequested` 事件由 code-behind 订阅。
+- **chips 数据驱动**：写死的 远程/本地/SimNow 三按钮换成 `ItemsControl` 绑定 `Fronts`；当前地址匹配的
+  chip 高亮（`IsCurrent` 由 VM 在 `OnMdFrontChanged` 重算——地址是身份，改名不影响）。
+- **选中态持久化**：点 chip 只填地址（与手输同路），「订阅」时随 `market.mdFront` 落档——配置后保持最新。
+- **测试**：+6 例（MarketFrontPresetsTests：无档/坏 JSON/空数组回内置、用户档过滤与 trim、保存读取
+  往返、空清单清键恢复默认）；60→66 例全绿。对话框交互面（模态/编辑/保存链）属 GUI 实跑验收。

@@ -9,6 +9,9 @@ DESIGN §3.8/§11）。依赖闭包 = ⑩（引擎）+ ⑦（ICtpSession 官方�
 - **免登录 MD 看板**：只连行情腿（MD），冷启动自动连上并订阅（默认本地前置 `tcp://127.0.0.1:17802` +
   `ax001`），合约/名称/最新/涨跌/涨跌幅/买卖一档/成交量/持仓量/变动次数/时间一屏看完。bot 跑起来时
   「价格在动」直接看得见；静默 10s 状态栏点名（前置断了，或 MD 被别的账号重建）。
+- **前置清单可配置（2026-10-26）**：「管理 ⚙」打开对话框增删改前置（名称 + 地址），保存即持久化并
+  即时刷新 chips——重启保持最新配置（用户档 `market.fronts` 优先；无档/坏档/清空回退内置
+  本地/远程/SimNow，清单永不为空）。当前选中的前置高亮，点 chip 即填入地址。
 - **真实前置（SimNow）模式**：「SimNow」chip 一键切 `tcp://182.254.243.31:40011`（公开地址，账号/密码
   不进仓）——连真实前置且品种还是仿真默认（ax001）时，订阅面自动替换为**客户端直爬的期货主力合约
   目录**（东方财富 mk0830 板块，一品种一条约 87 个；`MainFuturesCatalog`——移植自原 Web 服务端的爬虫，
@@ -42,10 +45,12 @@ dotnet run --project aether-desktop/src/Aether.Desktop
 | `DesktopWorkspace.cs` | 工作台定义（单 tab）+ App 自己的 PanelKeys + 回归指引注释 |
 | `AppViewContributor.cs` | IViewRegistryContributor——行情 panel 的视图/VM 工厂注册进 ⑩ 引擎 |
 | `JsonPreferencesStore.cs` | IPreferencesStore 的 JSON 文件实现（GetAsync 同步完成——引擎启动期同步恢复依赖此） |
-| `MarketWatch/MarketWatchViewModel.cs` | 行情页 VM：MD 订阅（免登录）/ 真实前置自动爬主力合约 / 看板行原位更新 / 每秒速率与静默检测 |
+| `MarketWatch/MarketFronts.cs` | 前置清单模型 + 档案（用户档 `market.fronts` 优先/坏档空档回退内置三 chip/空清单=清键恢复默认）——钉单测 |
+| `MarketWatch/MarketWatchViewModel.cs` | 行情页 VM：MD 订阅（免登录）/ 真实前置自动爬主力合约 / 看板行原位更新 / 每秒速率与静默检测 / 前置清单管理 |
+| `MarketWatch/ManageFrontsDialog.axaml(.cs)` + `ManageFrontsViewModel.cs` | 「管理行情前置」模态对话框：编辑副本（增/删/改），保存落档+重载 chips，取消丢弃 |
 | `MarketWatch/MainFuturesCatalog.cs` | 期货主力合约目录——客户端直爬东方财富 mk0830（Web 服务端 `SecuritySyncService` 的移植；代码规整 + 月均过滤 + sc→交易所），`NormalizeCode` 钉单测 |
 | `MarketWatch/MarketMath.cs` | 涨跌口径纯计算（昨结→昨收→首笔）+ 显示格式——被单测钉住 |
-| `MarketWatch/MarketWatchView.axaml` | 行情看板视图：订阅栏（远程/本地/SimNow chips + MD 密码 + 主力合约按钮）+ 口径条 + 十四列表格 |
+| `MarketWatch/MarketWatchView.axaml` | 行情看板视图：订阅栏（可配置前置 chips + 管理 ⚙ + MD 密码 + 主力合约按钮）+ 口径条 + 十四列表格 |
 
 ## 来历
 
