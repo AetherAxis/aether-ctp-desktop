@@ -2,7 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 
-namespace Aether.Desktop;
+namespace Aether.CtpDesktop;
 
 /// <summary>程序入口。</summary>
 internal static class Program

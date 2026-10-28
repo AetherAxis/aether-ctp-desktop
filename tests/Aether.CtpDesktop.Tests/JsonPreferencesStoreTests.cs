@@ -1,6 +1,6 @@
-using Aether.Desktop;
+using Aether.CtpDesktop;
 
-namespace Aether.Desktop.Tests;
+namespace Aether.CtpDesktop.Tests;
 
 /// <summary>
 /// 偏好存储是布局/主题/表单档案的唯一落盘点。<b>同步完成</b>是硬要求（引擎启动期在 UI 线程

@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Aether.Desktop\Aether.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\Aether.CtpDesktop\Aether.CtpDesktop.csproj" />
   </ItemGroup>
 
   <ItemGroup>

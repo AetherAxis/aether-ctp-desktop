@@ -6,9 +6,9 @@ using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Aether.Desktop.MarketWatch;
+using Aether.CtpDesktop.MarketWatch;
 
-namespace Aether.Desktop.Tests;
+namespace Aether.CtpDesktop.Tests;
 
 /// <summary>
 /// 主力合约目录（客户端直爬东方财富）。这条链路决定「连真实前置时到底订阅什么」：

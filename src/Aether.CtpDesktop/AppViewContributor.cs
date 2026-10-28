@@ -1,8 +1,8 @@
-using Aether.Desktop.MarketWatch;
+using Aether.CtpDesktop.MarketWatch;
 using Aether.Workbench.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Aether.Desktop;
+namespace Aether.CtpDesktop;
 
 /// <summary>App 视图贡献者：把行情 panel 的视图/VM 工厂注册进 ⑩ 引擎的 IViewRegistry。</summary>
 public sealed class AppViewContributor : IViewRegistryContributor

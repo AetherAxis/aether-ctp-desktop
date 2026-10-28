@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Aether.Desktop.MarketWatch;
+namespace Aether.CtpDesktop.MarketWatch;
 
 /// <summary>主力合约目录的一条：CTP 规整代码 + 中文名 + 交易所简称。</summary>
 public sealed record MainFuturesEntry(string Code, string Name, string Exchange);

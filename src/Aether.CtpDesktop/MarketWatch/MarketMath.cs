@@ -1,7 +1,7 @@
 using System;
 using System.Globalization;
 
-namespace Aether.Desktop.MarketWatch;
+namespace Aether.CtpDesktop.MarketWatch;
 
 /// <summary>
 /// 行情看板的纯计算面（涨跌基准、涨跌额/幅、显示格式）。抽出来是为了能被单元测试钉住——

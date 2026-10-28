@@ -1,6 +1,6 @@
 using Avalonia.Controls;
 
-namespace Aether.Desktop.MarketWatch;
+namespace Aether.CtpDesktop.MarketWatch;
 
 public partial class MarketWatchView : UserControl
 {

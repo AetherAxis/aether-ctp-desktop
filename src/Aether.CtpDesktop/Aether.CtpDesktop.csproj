@@ -6,14 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
-    <AssemblyName>Aether.Desktop</AssemblyName>
-    <RootNamespace>Aether.Desktop</RootNamespace>
+    <AssemblyName>Aether.CtpDesktop</AssemblyName>
+    <RootNamespace>Aether.CtpDesktop</RootNamespace>
   </PropertyGroup>
 
   <!-- 测试可断言内部的显示格式化（DirText/OffsetText/OrderStatusText）——它们是 UI 文案口径，
        漂移会让日志与界面各说各话；控件级验证仍靠实跑。 -->
   <ItemGroup>
-    <InternalsVisibleTo Include="Aether.Desktop.Tests" />
+    <InternalsVisibleTo Include="Aether.CtpDesktop.Tests" />
   </ItemGroup>
 
   <ItemGroup>

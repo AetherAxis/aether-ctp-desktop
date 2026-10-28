@@ -1,4 +1,4 @@
-# Aether.Desktop 设计说明
+# Aether.CtpDesktop 设计说明
 
 > 本文件写「怎么设计 / 为什么这么设计 / 还能往哪升级」。工作区边界与迁移决策以根 `MIGRATION.md` 为准。
 
@@ -14,7 +14,7 @@
 
 | 目录/文件 | 职责 | 关键类型 | 出向依赖 |
 |---|---|---|---|
-| `Aether.Desktop.csproj` | `WinExe`/`net10.0`；macOS frameworks 复制 | — | ⑩、⑦（③②传递） |
+| `Aether.CtpDesktop.csproj` | `WinExe`/`net10.0`；macOS frameworks 复制 | — | ⑩、⑦（③②传递） |
 | `Program.cs`、`App.axaml(.cs)` | 入口；DI、`AddCtpInfrastructure`、`AddWorkbench` | `Program`、`App` | Avalonia、⑩、⑦、DI |
 | `DesktopWorkspace.cs` | PanelKeys + 单 tab 定义 + 交易/钱包回归指引 | `PanelKeys`、`DesktopWorkspace` | ⑩ |
 | `AppViewContributor.cs` | 注册行情 panel 视图/VM 工厂 | `IViewRegistryContributor` | ⑩ |
@@ -101,12 +101,12 @@
 ## 4. 运行与验证
 
 ```bash
-dotnet run --project aether-desktop/src/Aether.Desktop
+dotnet run --project aether-ctp-desktop/src/Aether.CtpDesktop
 ```
 
 偏好写 `~/.aether/aether-desktop/preferences.json`，连接档案为同目录 `ctp.db`。前置：`tcp://127.0.0.1:17801/17802` 或 `tcp://<IP>:17801/17802`。
 
-CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Release`，**无 Test 步**。macOS 需复制三个 framework，否则首个 P/Invoke 即 `DllNotFoundException`。按 `MIGRATION.md` L1–L5，本仓只有 L1 证据；页面行为、回调编组、退出清理须实跑核实。
+CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-ctp-desktop.slnx -c Release`，**无 Test 步**。macOS 需复制三个 framework，否则首个 P/Invoke 即 `DllNotFoundException`。按 `MIGRATION.md` L1–L5，本仓只有 L1 证据；页面行为、回调编组、退出清理须实跑核实。
 
 ## 5. 升级记录（2026-10-24）
 
@@ -123,7 +123,7 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 
 | # | 优先级 | 项目 | 现状证据 | 建议 | 代价 / 风险 |
 |---|---|---|---|---|---|
-| 1 | P0 | ~~无测试项目~~（已建，84 例，CI 已加 Test 步） | `tests/Aether.Desktop.Tests` | — | — |
+| 1 | P0 | ~~无测试项目~~（已建，**76 例**——2026-10-28 改名后实测；CI 已加 Test 步） | `tests/Aether.CtpDesktop.Tests` | — | — |
 | 2 | P0 | 文档与代码不一致 | README 曾与实际 tab 不符；已随 2026-10-25 布局收敛重写 | 保持文档随 tab 变更同步 | 无代码风险 |
 | 3 | P1 | ~~持仓均价与浮亏错误~~（已修：柜台 `PositionCost`/`PositionProfit` 口径，见 §7） | — | — | — |
 | 4 | P1 | ~~自动轮询未实现~~（已修：`DispatcherTimer` 3s，见 §7） | — | — | — |
@@ -134,7 +134,7 @@ CI 在 ubuntu-latest + .NET 10 只跑 `dotnet build aether-desktop.slnx -c Relea
 
 ## 7. 本轮升级落地（2026-10-24）
 
-- **测试项目**（第 1 项）：新建 `tests/Aether.Desktop.Tests`（29 例全绿）：偏好存储（同步完成契约、设 null 即删键、跨实例持久化、坏文件当空重建、密码键可彻底删掉）、连接预设档案（用户档优先/坏档回退内置/空清单兜底/单条坏数据只丢自己/序列化往返）、显示格式（方向/开平/委托状态字符→中文）。CI 加 Test 步骤。
+- **测试项目**（第 1 项）：新建 `tests/Aether.CtpDesktop.Tests`（29 例全绿）：偏好存储（同步完成契约、设 null 即删键、跨实例持久化、坏文件当空重建、密码键可彻底删掉）、连接预设档案（用户档优先/坏档回退内置/空清单兜底/单条坏数据只丢自己/序列化往返）、显示格式（方向/开平/委托状态字符→中文）。CI 加 Test 步骤。
 - **持仓均价与浮亏**（第 3 项）：不再拿 `tick.LastPrice` 冒充开仓价、不再把 `Profit` 硬填 0。**契约补 `PositionCost`**（原生 `PositionCost` 一路补齐：② SDK `Position` → ③ `CtpPosition` → ⑦ mapper），界面列改为「持仓成本」按原值显示（均价 = 成本 ÷ (手数 × 合约乘数)，乘数不在契约里，故不折算）；浮盈改用柜台口径 `PositionProfit`。tick 回调只更新现价——**不再用「价差 × 手数」自己算**（那是价格单位不是金额，且与昨仓结算价基准不符）。
 - **自动轮询**（第 4 项）：`DispatcherTimer` 3s 轮询账户+持仓（与 README 一致；原来类注释宣称轮询但代码里没有），连接时启动/断开停止，`_pollBusy` 防重入。委托表仍是手动刷新（空表查询 30s 超时为已知边界）。
 - **密码明文落盘**（第 5 项）：**密码不再持久化**，并在构造时清掉历史版本写下的明文键；`AutoLogin` 因冷启动无密码而无法自动完成登录——改为明确提示而不是拿空密码去撞柜台。要恢复「记住密码/自动登录」须接系统钥匙串（macOS Keychain / Windows DPAPI / libsecret），偏好只存引用。

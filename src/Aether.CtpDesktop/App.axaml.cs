@@ -1,5 +1,5 @@
 using System.IO;
-using Aether.Desktop.MarketWatch;
+using Aether.CtpDesktop.MarketWatch;
 using Aether.Workbench;
 using Aether.Workbench.Abstractions;
 using Avalonia;
@@ -7,7 +7,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Ctp.Net.Client.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Aether.Desktop;
+namespace Aether.CtpDesktop;
 
 /// <summary>
 /// ⑪ 组合根：⑩ 布局引擎 + ⑦ CTP 客户端组件 → **纯行情终端**（单 tab，2026-10-26 收敛）。
@@ -21,6 +21,9 @@ public partial class App : Application
     public override void OnFrameworkInitializationCompleted()
     {
         // 持久化：~/.aether/aether-desktop/preferences.json（布局/主题/行情页订阅档案）
+        // ⚠ 目录名是**故意保留的历史字面量**（2026-10-28 仓名改为 aether-ctp-desktop 时未跟随）：
+        //   里面是用户的 ctp.db（连接档案含密码，0600）与布局偏好——改目录 = 让已有档案变孤儿，
+        //   收益为零。它不是产品名，是用户数据的位置。
         var dataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".aether", "aether-desktop");
         Directory.CreateDirectory(dataDir);
 

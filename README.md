@@ -1,4 +1,4 @@
-# Aether.Desktop
+# Aether.CtpDesktop
 
 **纯行情终端**——⑩ `aether-workbench` 布局引擎的第一个消费者。**单 tab：行情**（2026-10-26 收敛：
 交易/钱包页按用户决定撤除、后面按需求回归；此前经 五 tab → 三 tab → 单 tab 两轮收敛，决策记录见
@@ -27,7 +27,7 @@ DESIGN §3.8/§11）。依赖闭包 = ⑩（引擎）+ ⑦（ICtpSession 官方�
 ## 用法
 
 ```bash
-dotnet run --project aether-desktop/src/Aether.Desktop
+dotnet run --project aether-ctp-desktop/src/Aether.CtpDesktop
 ```
 
 **看行情（直连形态，2026-10-26 起标准）**：bot 直连远程前置（`~/aether-bots/start-direct.sh`）时，
@@ -61,10 +61,15 @@ dotnet run --project aether-desktop/src/Aether.Desktop
 2026-10-20/21 建：从 Aether monorepo 桌面端迁移而来但**不无脑复制**——新组合根 + ⑩ 引擎
 （当日在 monorepo Workbench 基础上切核独立成仓）。完整决策记录见工作区根 `MIGRATION.md`。
 
+2026-10-28 改名：`aether-desktop` → `aether-ctp-desktop`（程序集/命名空间 `Aether.Desktop` → `Aether.CtpDesktop`）。
+理由同 ⑧ `aether-apps` → `aether-ctp-hosts`：本仓只装 CTP 一条线的客户端 UI，旧名说不出是哪条线。
+⚠ **用户数据目录 `~/.aether/aether-desktop/` 保持不变**——里面是 `ctp.db`（连接档案含密码，0600）与
+`preferences.json`（布局/主题/订阅品种），改目录名只会让已存档案变孤儿。
+
 ## 测试
 
 ```bash
-dotnet test aether-desktop.slnx    # tests/Aether.Desktop.Tests：60 例纯逻辑面
+dotnet test aether-ctp-desktop.slnx    # tests/Aether.CtpDesktop.Tests：76 例纯逻辑面（2026-10-28 实测；纯逻辑面不涉 UI 布局）
 ```
 
 覆盖偏好存储（同步契约/坏档重建）、行情口径（涨跌基准回退/无值哨兵不归零/变动次数只数真实变化/

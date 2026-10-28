@@ -1,6 +1,6 @@
 using Aether.Workbench.Abstractions;
 
-namespace Aether.Desktop;
+namespace Aether.CtpDesktop;
 
 /// <summary>App 的 panel key 目录（App 自备——⑩ 引擎不携带任何业务键）。</summary>
 public static class PanelKeys

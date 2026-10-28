@@ -12,7 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Ctp.Net;
 
-namespace Aether.Desktop.MarketWatch;
+namespace Aether.CtpDesktop.MarketWatch;
 
 /// <summary>
 /// 行情页 ViewModel —— 一个「打开就能看」的行情终端：只连行情前置（MD 腿，不需要交易登录），

@@ -1,6 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="Aether.Desktop.MarketWatch.ManageProfilesDialog"
+        x:Class="Aether.CtpDesktop.MarketWatch.ManageProfilesDialog"
         Title="管理连接档案"
         Width="560" MinHeight="420"
         WindowStartupLocation="CenterOwner"

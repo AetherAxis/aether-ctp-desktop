@@ -1,7 +1,7 @@
 using System.IO;
 using System.Text.Json;
 
-namespace Aether.Desktop;
+namespace Aether.CtpDesktop;
 
 /// <summary>
 /// <see cref="Aether.Workbench.IPreferencesStore"/> 的 JSON 文件实现（单文件字典）。

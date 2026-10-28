@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
-using Aether.Desktop.MarketWatch;
+using Aether.CtpDesktop.MarketWatch;
 using Ctp.Net;
 
-namespace Aether.Desktop.Tests;
+namespace Aether.CtpDesktop.Tests;
 
 /// <summary>
 /// 连接档案的纯逻辑面（对齐 monorepo 连接器的期货连接语义）。这些函数决定：

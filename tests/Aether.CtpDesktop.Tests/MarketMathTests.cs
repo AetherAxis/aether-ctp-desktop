@@ -1,6 +1,6 @@
-using Aether.Desktop.MarketWatch;
+using Aether.CtpDesktop.MarketWatch;
 
-namespace Aether.Desktop.Tests;
+namespace Aether.CtpDesktop.Tests;
 
 /// <summary>
 /// 行情看板的涨跌口径。这些数字直接决定用户看到的「涨/跌」——口径错了不会有异常，

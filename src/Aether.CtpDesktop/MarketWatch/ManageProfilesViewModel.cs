@@ -5,7 +5,7 @@ using System.Linq;
 using Ctp.Net;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Aether.Desktop.MarketWatch;
+namespace Aether.CtpDesktop.MarketWatch;
 
 /// <summary>
 /// 「管理连接」对话框里的编辑副本（完整连接配置——对齐 ③ <see cref="CtpConnectionConfig"/> 字段面）。

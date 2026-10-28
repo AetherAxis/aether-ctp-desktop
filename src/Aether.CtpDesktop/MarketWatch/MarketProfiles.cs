@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Ctp.Net;
 
-namespace Aether.Desktop.MarketWatch;
+namespace Aether.CtpDesktop.MarketWatch;
 
 /// <summary>连接档案 chip 的 VM 包装（<see cref="CtpConnectionConfig"/> 非可观测——chip 清单在 MdFront 变化时整体重建）。</summary>
 public sealed class ProfileChip

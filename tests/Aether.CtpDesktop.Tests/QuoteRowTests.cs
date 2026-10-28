@@ -1,7 +1,7 @@
-using Aether.Desktop.MarketWatch;
+using Aether.CtpDesktop.MarketWatch;
 using Ctp.Net;
 
-namespace Aether.Desktop.Tests;
+namespace Aether.CtpDesktop.Tests;
 
 /// <summary>
 /// 行情行的吃 tick 行为（不碰控件，纯状态机）。重点钉三件事：

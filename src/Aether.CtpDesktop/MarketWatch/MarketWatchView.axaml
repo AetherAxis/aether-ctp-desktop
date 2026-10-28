@@ -1,6 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="Aether.Desktop.MarketWatch.MarketWatchView">
+             x:Class="Aether.CtpDesktop.MarketWatch.MarketWatchView">
 
   <UserControl.Styles>
     <!-- 涨=红、跌=绿（A 股/国内期货惯例；与主题强调色无关，是行情语义色） -->
