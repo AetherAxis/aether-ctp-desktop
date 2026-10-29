@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -75,7 +76,21 @@ public partial class MarketWatchViewModel : ObservableObject
     private readonly Dictionary<string, QuoteRow> _rowsByInstrument = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>爬取到的主力合约中文名（代码 → 名称）——看板「名称」列的数据源；手输品种查不到就留空。</summary>
     private Dictionary<string, string> _namesByInstrument = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Queue<DateTime> _recentTicks = new();
+    /// <summary>
+    /// 速率采样：**每拍一条**（拍时间, 该拍内的 tick 数），不再逐笔入队。
+    /// 逐笔入队在 2026-10-29 事故里暴露成问题——上游同一条行情被重复投递 28 万次/秒时，
+    /// 队列每秒涨几十万项，光进出队就够 UI 卡住。
+    /// </summary>
+    private readonly Queue<(DateTime At, long Count)> _rateSamples = new();
+    /// <summary>看板在册的合约。行情回调线程要读（过滤），故用并发字典；UI 线程在 <see cref="SyncRows"/> 维护。</summary>
+    private readonly ConcurrentDictionary<string, byte> _boardInstruments = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>回调线程写入的「每合约最新一笔」，由每秒一拍在 UI 线程取走。</summary>
+    private readonly ConcurrentDictionary<string, CtpTick> _pendingTicks = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>自上一拍以来收到的看板 tick 数（回调线程累加，UI 线程取走并清零）。</summary>
+    private long _ticksSincePulse;
+    /// <summary>最近一笔看板 tick 的 UTC ticks（回调线程写，避免跨线程碰 <see cref="_lastTickAt"/>）。</summary>
+    private long _lastTickAtTicks = DateTime.MinValue.Ticks;
+
     private readonly DispatcherTimer _pulse = new() { Interval = TimeSpan.FromSeconds(1) };
 
     private DateTime _lastTickAt = DateTime.MinValue;
@@ -96,7 +111,10 @@ public partial class MarketWatchViewModel : ObservableObject
 
         SyncRows(SplitSymbols(SymbolInput));
 
-        _session.TickReceived += (_, t) => Dispatcher.UIThread.Post(() => OnTick(t));
+        // 行情回调线程只做「记下每合约最新一笔」（O(1)，不碰 UI），由每秒一拍在 UI 线程合并刷新。
+        // 逐笔 Dispatcher.Post 的代价在 2026-10-29 事故里现过原形：上游同一条行情被重复投递
+        // 28 万次/秒时，主线程被 Post 淹掉，界面表现成假死。
+        _session.TickReceived += (_, t) => EnqueueTick(t);
         _session.ConnectionStateChanged += (_, s) => Dispatcher.UIThread.Post(() => OnConnectionState(s));
 
         _pulse.Tick += (_, _) => UpdatePulse();
@@ -368,7 +386,10 @@ public partial class MarketWatchViewModel : ObservableObject
 
         IsSubscribed = _session.IsMdSubscribed;
         foreach (var row in Quotes) row.Reset();
-        _recentTicks.Clear();
+        _rateSamples.Clear();
+        _pendingTicks.Clear();
+        Interlocked.Exchange(ref _ticksSincePulse, 0);
+        Interlocked.Exchange(ref _lastTickAtTicks, DateTime.MinValue.Ticks);
         _lastTickAt = DateTime.MinValue;
         UpdatePulse();
     }
@@ -461,16 +482,43 @@ public partial class MarketWatchViewModel : ObservableObject
 
     // ── 数据流 ──
 
-    private void OnTick(CtpTick tick)
+    /// <summary>
+    /// 行情回调线程入口：只登记「该合约最新一笔」，**不碰 UI、不做逐笔累积**。
+    /// 同合约的中间态直接覆盖——看板每秒只展示一次，被覆盖掉的中间价没有任何人看得到。
+    /// </summary>
+    private void EnqueueTick(CtpTick tick)
     {
         // 只喂看板上的合约：同一条 MD 连接上可能还挂着交易页/策略订阅的别的合约（IF2612 之类），
         // 它们进来会让「品种数」和速率对不上看板，直接忽略。
-        if (!_rowsByInstrument.TryGetValue(tick.InstrumentId, out var row)) return;
+        if (!_boardInstruments.ContainsKey(tick.InstrumentId)) return;
 
+        _pendingTicks[tick.InstrumentId] = tick;
+        Interlocked.Increment(ref _ticksSincePulse);
+        Interlocked.Exchange(ref _lastTickAtTicks, DateTime.UtcNow.Ticks);
+    }
+
+    /// <summary>UI 线程（每秒一拍）：把回调线程攒下的「每合约最新一笔」落到行上，并把速率样本记一条。</summary>
+    private void DrainTicks()
+    {
+        var ticks = Interlocked.Exchange(ref _ticksSincePulse, 0);
+        if (ticks > 0)
+        {
+            _rateSamples.Enqueue((DateTime.UtcNow, ticks));
+            TickCount += ticks;
+        }
+
+        var at = Interlocked.Read(ref _lastTickAtTicks);
+        if (at > DateTime.MinValue.Ticks) _lastTickAt = new DateTime(at, DateTimeKind.Utc);
+
+        foreach (var instrument in _pendingTicks.Keys)
+            if (_pendingTicks.TryRemove(instrument, out var tick))
+                OnTick(tick);
+    }
+
+    private void OnTick(CtpTick tick)
+    {
+        if (!_rowsByInstrument.TryGetValue(tick.InstrumentId, out var row)) return;
         row.Apply(tick);
-        _lastTickAt = DateTime.UtcNow;
-        _recentTicks.Enqueue(_lastTickAt);
-        TickCount++;
     }
 
     private void OnConnectionState(CtpConnectionStatus status)
@@ -483,14 +531,19 @@ public partial class MarketWatchViewModel : ObservableObject
                 : "交易连接状态变化，行情连接已释放——点「订阅」重新连行情";
     }
 
-    /// <summary>每秒一拍：算速率、判断静默、刷新口径行。</summary>
+    /// <summary>每秒一拍：落 tick、算速率、判断静默、刷新口径行。</summary>
     private void UpdatePulse()
     {
-        var now = DateTime.UtcNow;
-        while (_recentTicks.Count > 0 && (now - _recentTicks.Peek()).TotalSeconds > RateWindowSeconds)
-            _recentTicks.Dequeue();
+        DrainTicks();
 
-        TickRate = MarketMath.TickRate(_recentTicks.Count, RateWindowSeconds);
+        var now = DateTime.UtcNow;
+        while (_rateSamples.Count > 0 && (now - _rateSamples.Peek().At).TotalSeconds > RateWindowSeconds)
+            _rateSamples.Dequeue();
+
+        long ticksInWindow = 0;
+        foreach (var sample in _rateSamples) ticksInWindow += sample.Count;
+
+        TickRate = MarketMath.TickRate((int)Math.Min(int.MaxValue, ticksInWindow), RateWindowSeconds);
         IsSubscribed = _session.IsMdSubscribed;
 
         if (_lastTickAt == DateTime.MinValue)
@@ -532,11 +585,13 @@ public partial class MarketWatchViewModel : ObservableObject
         {
             if (wanted.Contains(Quotes[i].Instrument)) continue;
             _rowsByInstrument.Remove(Quotes[i].Instrument);
+            _boardInstruments.TryRemove(Quotes[i].Instrument, out _);
             Quotes.RemoveAt(i);
         }
 
         foreach (var symbol in symbols)
         {
+            _boardInstruments[symbol] = 0;   // 回调线程按它过滤，必须在行建好之前就登记
             if (_rowsByInstrument.ContainsKey(symbol)) continue;
             var name = _namesByInstrument.GetValueOrDefault(symbol)
                 ?? SimInstrumentNames.GetValueOrDefault(symbol)
